@@ -67,8 +67,7 @@ def normalizeControlPoints(pts):
 
 
 def findProjectiveTransform(uv, xy):
-    
-    
+
     """
     This code is a Python implementation of Matlab code
     

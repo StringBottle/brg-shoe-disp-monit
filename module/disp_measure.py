@@ -29,7 +29,6 @@ def convert_by_img(dest_img,
 
     ## Parameters
     # constant for weight matrix
-
     # set max, min radius of finding circles
 
 
