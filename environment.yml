@@ -1,0 +1,12 @@
+name: brg-shoe
+
+dependencies:
+  - python=3.7
+  - pip:
+    - opencv-python
+    - numpy
+    - tqdm
+    - matplotlib
+    - jupyter notebook
+
+prefix: C:\Users\shdik\Anaconda3\envs\brg-shoe
