@@ -1,6 +1,6 @@
 # Automated Anomaly Detection of Bridge Shoe Displacement 
 
-This repository is for development of automated anomaly detection of bridge shoe displacement by Smart Structures and Systems Laboratory at University of Seoul. 
+This repository is for development of automated bridge shoe displacement anomaly detection by Smart Structures and Systems Laboratory at University of Seoul. 
 
 ## Installation
 
