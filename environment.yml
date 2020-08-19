@@ -1,4 +1,4 @@
-name: brg-shoe
+name: shoe-monit
 
 dependencies:
   - python=3.7
@@ -8,5 +8,3 @@ dependencies:
     - tqdm
     - matplotlib
     - jupyter notebook
-
-prefix: C:\Users\shdik\Anaconda3\envs\brg-shoe

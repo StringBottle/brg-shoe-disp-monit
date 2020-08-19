@@ -6,7 +6,6 @@ import numpy as np
 import cv2
 from .utils import findProjectiveTransform
 
-
 ## Function with Path
 def convert_by_path(dest_path, src_path):
     dest_img = cv2.imread(dest_path)
@@ -30,7 +29,6 @@ def convert_by_img(dest_img,
     ## Parameters
     # constant for weight matrix
     # set max, min radius of finding circles
-
 
     ## 흑백화면 생성 - For cv2.HoughCircles()
     grey_dest_img = cv2.cvtColor(dest_img, cv2.COLOR_BGR2GRAY)
@@ -141,7 +139,7 @@ def convert_by_img(dest_img,
     ## 결과 도출 - result
     result = (dist_1 + dist_2 + dist_3 + dist_4) / 4 - np.array([[p_length/4], [p_length/4], [1]])
 
-    return result
+    return result[:2]
 
 # Deprecated Code!
     # for img_num in range(1, len(img_file_list)+1):
