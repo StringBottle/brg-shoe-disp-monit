@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # This module uses Numpy & OpenCV(opencv-python). Please install before use it.
+
 import os.path
 import numpy as np
 import cv2
@@ -48,6 +49,7 @@ def convert_by_img(dest_img,
     
     iter_count = 1
     num_centers = 0
+    cnt_direction_change_1 = 0
     cnt_direction_change_2 = 0
     sensi_adj_drct_hist = [0]
 
