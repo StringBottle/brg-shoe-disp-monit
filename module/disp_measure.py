@@ -114,7 +114,7 @@ def convert_by_img(dest_img,
             print('After 200 iteration, 4 circles are not detected.')
             return [0., 0., 0.]
     
-    # Modified by beetea - Use Try-Except
+    # Modified by beetea
     dest_circles = find_valid_dest_circles(dest_circles)
 
     ## Deprecated code since len(dest_circles) == 4 is always true
