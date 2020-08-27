@@ -6,7 +6,45 @@ import itertools
 import os.path
 import numpy as np
 import cv2
+from itertools import combinations # ADDED! CHECK plz
 from .utils import findProjectiveTransform
+
+## Function that find four valid circles in dest_circles
+def find_valid_dest_circles(dest_circles):
+    ## I. 상위 4개 원을 x value를 기준으로 sort 진행
+    target = dest_circles[0:4] # 상위 4개 원 추출
+    target = target[target[:,0].argsort()] # 이에 대해 sort
+
+    x = target[:, 0] # extract x value of circles - get col vector
+    y = target[:, 1] # extract y value of circles - get col vector
+
+    ## II. 정렬 후 대각선으로 위치한 원들의 좌표를 더한 후...
+    x_dist = (x[0] + x[3]) - (x[1] + x[2])
+    y_dist = (y[1] + y[3]) - (y[1] + y[2])
+
+    # ISSUE: BH님이 말씀하신 criteria가 이것이 맞는지?
+    if x_dist < 10.0 and y_dist < 10.0: # nice case
+        return dest_circles[0:4]
+    
+    ## III. 탐지된 원들 내에서 4개의 원을 추출하는 모든 경우의 수에 따라 원의 집합을 생성
+    comb = combinations(dest_circles, 4) # [[[x1, y1, r1], [x2, y2, r2], ...], [4], [4], [4], ...]
+
+    # IV. 각 원의 집합들에 대하여 2번 과정에 대한 연산을 수행
+    dist_list = []
+    for elem in comb:
+        # ISSUE: 각 elem에 대해서 x_val 기준 정렬을 진행해야하는가?
+        x = elem[:, 0] # extract x value of circles - get col vector
+        y = elem[:, 1] # extract y value of circles - get col vector
+
+        x_dist = (x[0] + x[3]) - (x[1] + x[2])
+        y_dist = (y[1] + y[3]) - (y[1] + y[2])
+        dist_list.append(x_dist + y_dist)
+    
+    # V. 4번 연산을 수행하여 가장 낮은 값을 갖는 집합을 반환 
+    min_val = min(dist_list)
+    min_idx = dist_list.index(min_val)
+    
+    return dist_list[min_idx]
 
 ## Function with Path
 def convert_by_path(dest_path, src_path):
@@ -75,9 +113,13 @@ def convert_by_img(dest_img,
         if iter_count > 200 : 
             print('After 200 iteration, 4 circles are not detected.')
             return [0., 0., 0.]
-        
-    if len(dest_circles) > 4 : 
-        print(dest_circles)
+    
+    # Modified by beetea - Use Try-Except
+    dest_circles = find_valid_dest_circles(dest_circles)
+
+    ## Deprecated code since len(dest_circles) == 4 is always true
+    #if len(dest_circles) > 4 : 
+    #    print(dest_circles)
 
     ## src에 대한 호모그래피 좌표변환
     # [[x1, y1], [x2, y2], ...]
@@ -129,4 +171,3 @@ def convert_by_img(dest_img,
     result = (dist_1 + dist_2 + dist_3 + dist_4) / 4 - np.array([[p_length/4], [p_length/4], [1]])
 
     return result[:2]
-    
