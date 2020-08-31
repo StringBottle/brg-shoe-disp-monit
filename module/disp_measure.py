@@ -6,7 +6,50 @@ import itertools
 import os.path
 import numpy as np
 import cv2
+from itertools import combinations # ADDED! CHECK plz
 from .utils import findProjectiveTransform
+
+## Function that find four valid circles in dest_circles
+def find_valid_dest_circles(dest_circles):
+    ## I. 상위 4개 원을 x value를 기준으로 sort 진행
+    target = dest_circles[0:4] # 상위 4개 원 추출
+    target = target[target[:,0].argsort()] # 이에 대해 sort
+
+    x = target[:, 0] # extract x value of circles - get col vector
+    y = target[:, 1] # extract y value of circles - get col vector
+
+    ## II. 정렬 후 대각선으로 위치한 원들의 좌표를 더한 후...
+    x_dist = abs((x[0] + x[3]) - (x[1] + x[2]))
+    y_dist = abs((y[0] + y[3]) - (y[1] + y[2]))
+
+    # ISSUE: BH님이 말씀하신 criteria가 이것이 맞는지?
+    if x_dist < 10.0 and y_dist < 10.0: # nice case
+        return dest_circles[0:4]
+    
+    ## III. 탐지된 원들 내에서 4개의 원을 추출하는 모든 경우의 수에 따라 원의 집합을 생성
+
+    comb = combinations(dest_circles, 4) # [[[x1, y1, r1], [x2, y2, r2], ...], [4], [4], [4], ...]
+    # IV. 각 원의 집합들에 대하여 2번 과정에 대한 연산을 수행
+    dist_list = []
+    elem_list = []
+    for elem in comb:
+        # elem 이 제 컴퓨터에서는 tuple로 반환되서 40번째 줄에서 인덱싱이 안되더군요 
+        # 그래서 np.array로 반환하였습니다. 
+        elem = np.asarray(elem) 
+        elem = elem[elem[:,0].argsort()] # 이에 대해 sort
+        # ISSUE: 각 elem에 대해서 x_val 기준 정렬을 진행해야하는가?
+        x = elem[:, 0] # extract x value of circles - get col vector
+        y = elem[:, 1] # extract y value of circles - get col vector
+        x_dist = abs((x[0] + x[3]) - (x[1] + x[2]))
+        y_dist = abs((y[0] + y[3]) - (y[1] + y[2]))
+        dist_list.append(x_dist + y_dist)
+        elem_list.append(elem)
+    
+    # V. 4번 연산을 수행하여 가장 낮은 값을 갖는 집합을 반환 
+    min_idx = np.argmin(dist_list)
+    dest_circles_with_min_dist = elem_list[min_idx]
+    
+    return dest_circles_with_min_dist
 
 ## Function with Path
 def convert_by_path(dest_path, src_path):
@@ -38,6 +81,7 @@ def convert_by_img(dest_img,
     grey_dest_img = cv2.cvtColor(dest_img, cv2.COLOR_BGR2GRAY)
     grey_src_img = cv2.cvtColor(src_img, cv2.COLOR_BGR2GRAY)
     
+
 #     _, grey_dest_img = cv2.threshold(grey_dest_img, 0, 255, cv2.THRESH_BINARY+cv2.THRESH_OTSU)
 #     _, grey_src_img = cv2.threshold(grey_src_img, 0, 255, cv2.THRESH_BINARY+cv2.THRESH_OTSU)
 
@@ -54,14 +98,18 @@ def convert_by_img(dest_img,
                                    param2=param2,
                                    minRadius=min_rad,
                                    maxRadius=max_rad)[0]
+
     
     iter_count = 1
     num_centers = 0
+    x_dist = 11
+    y_dist = 11
+    num_allowable_centers = 4
 
-    while num_centers < 4:
-        iter_count += 1
-        
-        try :
+    while x_dist > 5 or y_dist > 5 : 
+        while num_centers < num_allowable_centers :
+            iter_count += 1
+
             dest_circles = cv2.HoughCircles(grey_dest_img, 
                                             cv2.HOUGH_GRADIENT, 
                                             1,
@@ -70,21 +118,32 @@ def convert_by_img(dest_img,
                                             param2=param2, 
                                             minRadius=min_rad,
                                             maxRadius=max_rad)[0] 
-            
-        except:
-            dest_circles = []
-            
 
-        num_centers = len(dest_circles)
+            num_centers = len(dest_circles)
 
-        param2 -= 1
-                
-        if iter_count > 200 : 
-            print('After 200 iteration, 4 circles are not detected.')
-            return [0., 0., 0.]
+            param2 -= 1
+
+            if iter_count > 200 : 
+                print('After 200 iteration, 4 circles are not detected.')
+                return [0., 0., 0.]
+            
+        dest_circles = find_valid_dest_circles(dest_circles)
+        dest_circles = dest_circles[dest_circles[:,0].argsort()] # 이에 대해 sort
         
-#     if len(dest_circles) > 4 : 
-#         print(dest_circles)
+        x = dest_circles[:, 0] # extract x value of circles - get col vector
+        y = dest_circles[:, 1] # extract y value of circles - get col vector
+
+        x_dist= abs((x[0] + x[3]) - (x[1] + x[2]))
+        y_dist = abs((y[0] + y[3]) - (y[1] + y[2]))
+        print('x_dist', x_dist, 'y_dist', y_dist)
+        num_allowable_centers += 1
+
+    
+    # Modified by beetea
+    
+
+    ## Deprecated code since len(dest_circles) == 4 is always true
+
 
     ## src에 대한 호모그래피 좌표변환
     # [[x1, y1], [x2, y2], ...]
@@ -136,4 +195,3 @@ def convert_by_img(dest_img,
     result = (dist_1 + dist_2 + dist_3 + dist_4) / 4 - np.array([[p_length/4], [p_length/4], [1]])
 
     return result[:2]
-    
