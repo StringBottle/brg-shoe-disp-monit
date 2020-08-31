@@ -24,15 +24,12 @@ def convert_by_img(dest_img,
                    **input_params
                   ):
     
-    param1 = input_params.get("param1",80) 
-    param2 = input_params.get("param2",15)
+    param1 = input_params.get("param1",200) 
+    param2 = input_params.get("param2",25)
     p_length = input_params.get("p_length",50)
     min_rad = input_params.get("min_rad",70)
     max_rad = input_params.get("max_rad",100)
     
-#     for key, value in input_params.items():
-#     convert_by_img.__globals__.update(input_params)
-
     ## Parameters
     # constant for weight matrix
     # set max, min radius of finding circles
@@ -41,8 +38,8 @@ def convert_by_img(dest_img,
     grey_dest_img = cv2.cvtColor(dest_img, cv2.COLOR_BGR2GRAY)
     grey_src_img = cv2.cvtColor(src_img, cv2.COLOR_BGR2GRAY)
     
-    _, grey_dest_img = cv2.threshold(grey_dest_img, 0, 255, cv2.THRESH_BINARY+cv2.THRESH_OTSU)
-    _, grey_src_img = cv2.threshold(grey_src_img, 0, 255, cv2.THRESH_BINARY+cv2.THRESH_OTSU)
+#     _, grey_dest_img = cv2.threshold(grey_dest_img, 0, 255, cv2.THRESH_BINARY+cv2.THRESH_OTSU)
+#     _, grey_src_img = cv2.threshold(grey_src_img, 0, 255, cv2.THRESH_BINARY+cv2.THRESH_OTSU)
 
     
 
@@ -52,7 +49,7 @@ def convert_by_img(dest_img,
     src_circles = cv2.HoughCircles(grey_src_img, 
                                    cv2.HOUGH_GRADIENT,
                                    1, 
-                                   20, 
+                                   max_rad*2, 
                                    param1=param1,
                                    param2=param2,
                                    minRadius=min_rad,
@@ -68,7 +65,7 @@ def convert_by_img(dest_img,
             dest_circles = cv2.HoughCircles(grey_dest_img, 
                                             cv2.HOUGH_GRADIENT, 
                                             1,
-                                            20,
+                                            max_rad*2,
                                             param1=param1, 
                                             param2=param2, 
                                             minRadius=min_rad,
