@@ -6,7 +6,7 @@ import itertools
 import os.path
 import numpy as np
 import cv2
-from itertools import combinations # ADDED! CHECK plz
+from itertools import combinations 
 from .utils import findProjectiveTransform
 
 ## Function that find four valid circles in dest_circles
@@ -19,15 +19,17 @@ def find_valid_dest_circles(dest_circles):
     y = target[:, 1] # extract y value of circles - get col vector
 
     ## II. 정렬 후 대각선으로 위치한 원들의 좌표를 더한 후...
+    ## 각 좌표의 차이로 계산되어야해서 abs를 추가하였습니다. 
     x_dist = abs((x[0] + x[3]) - (x[1] + x[2]))
     y_dist = abs((y[0] + y[3]) - (y[1] + y[2]))
 
     # ISSUE: BH님이 말씀하신 criteria가 이것이 맞는지?
+    # A : 넵 전달드린 criteria를 정확하게 작성해주셨습니다. 
     if x_dist < 10.0 and y_dist < 10.0: # nice case
         return dest_circles[0:4]
     
     ## III. 탐지된 원들 내에서 4개의 원을 추출하는 모든 경우의 수에 따라 원의 집합을 생성
-
+    ## combination으로 계산되어도 문제 없습니다. 
     comb = combinations(dest_circles, 4) # [[[x1, y1, r1], [x2, y2, r2], ...], [4], [4], [4], ...]
     # IV. 각 원의 집합들에 대하여 2번 과정에 대한 연산을 수행
     dist_list = []
@@ -40,8 +42,10 @@ def find_valid_dest_circles(dest_circles):
         # ISSUE: 각 elem에 대해서 x_val 기준 정렬을 진행해야하는가?
         x = elem[:, 0] # extract x value of circles - get col vector
         y = elem[:, 1] # extract y value of circles - get col vector
+        
         x_dist = abs((x[0] + x[3]) - (x[1] + x[2]))
         y_dist = abs((y[0] + y[3]) - (y[1] + y[2]))
+        
         dist_list.append(x_dist + y_dist)
         elem_list.append(elem)
     
@@ -81,11 +85,11 @@ def convert_by_img(dest_img,
     grey_dest_img = cv2.cvtColor(dest_img, cv2.COLOR_BGR2GRAY)
     grey_src_img = cv2.cvtColor(src_img, cv2.COLOR_BGR2GRAY)
     
-
-#     _, grey_dest_img = cv2.threshold(grey_dest_img, 0, 255, cv2.THRESH_BINARY+cv2.THRESH_OTSU)
+    # To do : Check if binarization option is needed
+    _, grey_dest_img = cv2.threshold(grey_dest_img, 0, 255, cv2.THRESH_BINARY+cv2.THRESH_OTSU)
 #     _, grey_src_img = cv2.threshold(grey_src_img, 0, 255, cv2.THRESH_BINARY+cv2.THRESH_OTSU)
-
-    
+    kernel = np.ones((5,5),np.uint8)
+    grey_dest_img = cv2.morphologyEx(grey_dest_img, cv2.MORPH_GRADIENT, kernel)
 
     ## 이미지 변환 -> dim : (3, 4, 1)
     ## 검출률 변경을 위해선 param2 변경
@@ -109,23 +113,26 @@ def convert_by_img(dest_img,
     while x_dist > 5 or y_dist > 5 : 
         while num_centers < num_allowable_centers :
             iter_count += 1
-
-            dest_circles = cv2.HoughCircles(grey_dest_img, 
-                                            cv2.HOUGH_GRADIENT, 
-                                            1,
-                                            max_rad*2,
-                                            param1=param1, 
-                                            param2=param2, 
-                                            minRadius=min_rad,
-                                            maxRadius=max_rad)[0] 
+            
+            try : # Sometimes no circle is detected
+                dest_circles = cv2.HoughCircles(grey_dest_img, 
+                                                cv2.HOUGH_GRADIENT, 
+                                                1,
+                                                max_rad*2,
+                                                param1=param1, 
+                                                param2=param2, 
+                                                minRadius=min_rad,
+                                                maxRadius=max_rad)[0] 
+            except : 
+                dest_circles = []
 
             num_centers = len(dest_circles)
 
-            param2 -= 1
+            param2 -= 0.5
 
             if iter_count > 200 : 
                 print('After 200 iteration, 4 circles are not detected.')
-                return [0., 0., 0.]
+                return [0., 0., 0.], [[1, 1, 1], [1, 1, 1]]
             
         dest_circles = find_valid_dest_circles(dest_circles)
         dest_circles = dest_circles[dest_circles[:,0].argsort()] # 이에 대해 sort
@@ -135,7 +142,7 @@ def convert_by_img(dest_img,
 
         x_dist= abs((x[0] + x[3]) - (x[1] + x[2]))
         y_dist = abs((y[0] + y[3]) - (y[1] + y[2]))
-        print('x_dist', x_dist, 'y_dist', y_dist)
+        
         num_allowable_centers += 1
 
     
@@ -194,4 +201,4 @@ def convert_by_img(dest_img,
     ## 결과 도출 - result
     result = (dist_1 + dist_2 + dist_3 + dist_4) / 4 - np.array([[p_length/4], [p_length/4], [1]])
 
-    return result[:2]
+    return result[:2], dest_circles
