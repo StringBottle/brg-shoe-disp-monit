@@ -21,12 +21,17 @@ def convert_by_path(dest_path, src_path):
 ## Function with ndarray(img)
 def convert_by_img(dest_img,
                    src_img,   
-                   param1 = 80,
-                   param2 = 50,
-                   p_length = 50,
-                   min_rad = 70,
-                   max_rad = 100                   
+                   **input_params
                   ):
+    
+    param1 = input_params.get("param1",80) 
+    param2 = input_params.get("param2",15)
+    p_length = input_params.get("p_length",50)
+    min_rad = input_params.get("min_rad",70)
+    max_rad = input_params.get("max_rad",100)
+    
+#     for key, value in input_params.items():
+#     convert_by_img.__globals__.update(input_params)
 
     ## Parameters
     # constant for weight matrix
@@ -59,14 +64,19 @@ def convert_by_img(dest_img,
     while num_centers < 4:
         iter_count += 1
         
-        dest_circles = cv2.HoughCircles(grey_dest_img, 
-                                        cv2.HOUGH_GRADIENT, 
-                                        1,
-                                        20,
-                                        param1=param1, 
-                                        param2=param2, 
-                                        minRadius=min_rad,
-                                        maxRadius=max_rad)[0] 
+        try :
+            dest_circles = cv2.HoughCircles(grey_dest_img, 
+                                            cv2.HOUGH_GRADIENT, 
+                                            1,
+                                            20,
+                                            param1=param1, 
+                                            param2=param2, 
+                                            minRadius=min_rad,
+                                            maxRadius=max_rad)[0] 
+            
+        except:
+            dest_circles = []
+            
 
         num_centers = len(dest_circles)
 
@@ -76,8 +86,8 @@ def convert_by_img(dest_img,
             print('After 200 iteration, 4 circles are not detected.')
             return [0., 0., 0.]
         
-    if len(dest_circles) > 4 : 
-        print(dest_circles)
+#     if len(dest_circles) > 4 : 
+#         print(dest_circles)
 
     ## src에 대한 호모그래피 좌표변환
     # [[x1, y1], [x2, y2], ...]

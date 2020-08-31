@@ -1,0 +1,8 @@
+{
+"195": {"min_rad": 75, "max_rad": 85, "param1": 100, "param2": 15},
+"196": {"min_rad": 30, "max_rad": 40, "param1": 100, "param2": 15},
+"199": {"min_rad": 30, "max_rad": 40, "param1": 100, "param2": 15},
+"200": {"min_rad": 30, "max_rad": 40, "param1": 100, "param2": 15},
+"203": {"min_rad": 30, "max_rad": 40, "param1": 100, "param2": 15},
+"204": {"min_rad": 30, "max_rad": 40, "param1": 100, "param2": 15}
+}
