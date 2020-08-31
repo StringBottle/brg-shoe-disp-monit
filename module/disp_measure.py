@@ -21,9 +21,17 @@ def find_valid_dest_circles(dest_circles):
     ## II. 정렬 후 대각선으로 위치한 원들의 좌표를 더한 후...
     x_dist = abs((x[0] + x[3]) - (x[1] + x[2]))
     y_dist = abs((y[0] + y[3]) - (y[1] + y[2]))
+    
+    dist_list = []
+    dist_list.append(np.linalg.norm(target[0, :2] - target[1, :2]))
+    dist_list.append(np.linalg.norm(target[1, :2] - target[2, :2]))
+    dist_list.append(np.linalg.norm(target[2, :2] - target[3, :2]))
+    dist_list.append(np.linalg.norm(target[3, :2] - target[0, :2]))
+    dist_list = np.asarray(dist_list)
+    print(np.mean(dist_list))  
 
     # ISSUE: BH님이 말씀하신 criteria가 이것이 맞는지?
-    if x_dist < 10.0 and y_dist < 10.0: # nice case
+    if x_dist < 10.0 and y_dist < 10.0 and abs(np.mean(dist_list)-112) < 3: # nice case
         return dest_circles[0:4]
     
     ## III. 탐지된 원들 내에서 4개의 원을 추출하는 모든 경우의 수에 따라 원의 집합을 생성
@@ -32,7 +40,9 @@ def find_valid_dest_circles(dest_circles):
     # IV. 각 원의 집합들에 대하여 2번 과정에 대한 연산을 수행
     dist_list = []
     elem_list = []
+    dist_list_2 = []
     for elem in comb:
+        dist_list_tmp = []
         # elem 이 제 컴퓨터에서는 tuple로 반환되서 40번째 줄에서 인덱싱이 안되더군요 
         # 그래서 np.array로 반환하였습니다. 
         elem = np.asarray(elem) 
@@ -43,10 +53,17 @@ def find_valid_dest_circles(dest_circles):
         x_dist = abs((x[0] + x[3]) - (x[1] + x[2]))
         y_dist = abs((y[0] + y[3]) - (y[1] + y[2]))
         dist_list.append(x_dist + y_dist)
+        
+        dist_list_tmp.append(np.linalg.norm(target[0, :2] - target[1, :2]))
+        dist_list_tmp.append(np.linalg.norm(target[1, :2] - target[2, :2]))
+        dist_list_tmp.append(np.linalg.norm(target[2, :2] - target[3, :2]))
+        dist_list_tmp.append(np.linalg.norm(target[3, :2] - target[0, :2]))
+        dist_list_tmp = np.asarray(dist_list_tmp)
         elem_list.append(elem)
+        dist_list_2.append(np.mean(dist_list_tmp)-112)
     
     # V. 4번 연산을 수행하여 가장 낮은 값을 갖는 집합을 반환 
-    min_idx = np.argmin(dist_list)
+    min_idx = np.argmin(dist_list_2)
     dest_circles_with_min_dist = elem_list[min_idx]
     
     return dest_circles_with_min_dist
@@ -102,8 +119,9 @@ def convert_by_img(dest_img,
     x_dist = 11
     y_dist = 11
     num_allowable_centers = 4
+    dist_mean = 150
 
-    while x_dist > 5 or y_dist > 5 : 
+    while x_dist > 5 or y_dist > 5 or dist_mean > 120  : 
         while num_centers < num_allowable_centers :
             iter_count += 1
 
@@ -118,7 +136,7 @@ def convert_by_img(dest_img,
 
             num_centers = len(dest_circles)
 
-            param2 -= 1
+            param2 -= 0.1
 
             if iter_count > 200 : 
                 print('After 200 iteration, 4 circles are not detected.')
@@ -132,7 +150,17 @@ def convert_by_img(dest_img,
 
         x_dist= abs((x[0] + x[3]) - (x[1] + x[2]))
         y_dist = abs((y[0] + y[3]) - (y[1] + y[2]))
+        
+        dist_list = []
+        dist_list.append(np.linalg.norm(dest_circles[0, :2] - dest_circles[1, :2]))
+        dist_list.append(np.linalg.norm(dest_circles[1, :2] - dest_circles[2, :2]))
+        dist_list.append(np.linalg.norm(dest_circles[2, :2] - dest_circles[3, :2]))
+        dist_list.append(np.linalg.norm(dest_circles[3, :2] - dest_circles[0, :2]))
+        dist_list = np.asarray(dist_list)
+        dist_mean = np.mean(dist_list)
+        print(dist_mean)
         print('x_dist', x_dist, 'y_dist', y_dist)
+                  
         num_allowable_centers += 1
 
     
