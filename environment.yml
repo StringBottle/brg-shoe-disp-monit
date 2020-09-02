@@ -9,3 +9,4 @@ dependencies:
     - tqdm
     - matplotlib
     - jupyter
+    - scipy
