@@ -7,7 +7,7 @@ import os.path
 import numpy as np
 import cv2
 from itertools import combinations 
-from .utils import findProjectiveTransform
+from .utils import findProjectiveTransform, imfindcircles
 
 ## Function that find four valid circles in dest_circles
 def find_valid_dest_circles(dest_circles):
@@ -22,10 +22,11 @@ def find_valid_dest_circles(dest_circles):
     ## 각 좌표의 차이로 계산되어야해서 abs를 추가하였습니다. 
     x_dist = abs((x[0] + x[3]) - (x[1] + x[2]))
     y_dist = abs((y[0] + y[3]) - (y[1] + y[2]))
+    
 
     # ISSUE: BH님이 말씀하신 criteria가 이것이 맞는지?
     # A : 넵 전달드린 criteria를 정확하게 작성해주셨습니다. 
-    if x_dist < 10.0 and y_dist < 10.0: # nice case
+    if (x_dist < 10.0) and (y_dist < 10.0): # nice case
         return dest_circles[0:4]
     
     ## III. 탐지된 원들 내에서 4개의 원을 추출하는 모든 경우의 수에 따라 원의 집합을 생성
@@ -57,6 +58,16 @@ def find_valid_dest_circles(dest_circles):
 
 ## Function with Path
 def convert_by_path(dest_path, src_path):
+    
+    '''
+    현재 코드를 쓸 때 displacement_measure가 
+    source 이미지의 원도 탐지하고, dest이미지의 원도 탐지해서 
+    연산이 두배로 소요됩니다. 이 부분도 구현이 필요할 것 같습니다. 
+    혹은 displacement_measure에 pre-determine 된 원의 위치를 집어 넣을 수 있도록 
+    구현하면 좋을 것 같습니다. 
+    
+    '''
+    
     dest_img = cv2.imread(dest_path)
     dest_img = cv2.medianBlur(dest_img, 5)
 
@@ -66,16 +77,25 @@ def convert_by_path(dest_path, src_path):
     convert_by_img(dest_img, src_img)
 
 ## Function with ndarray(img)
-def convert_by_img(dest_img,
-                   src_img,   
-                   **input_params
-                  ):
+def displacement_measure(dest_img,
+                         src_img,   
+                         **input_params
+                        ):
+    
+    '''
+    아래 세부 변수들은 imfindcircels를 사용하게 되면 편집될 예정입니다. 
+    
+    변수들 불러올 때 **용법을 써서 동적으로 입력값을 받고 싶은데.. ㅎㅎ 
+    이 부분도 헷갈리던데 확인 부탁드려요 ㅠㅠ 
+    아래처럼 쓰는 것은 조금 지저분해 보입니다. 
+    '''
     
     param1 = input_params.get("param1",200) 
     param2 = input_params.get("param2",25)
     p_length = input_params.get("p_length",50)
     min_rad = input_params.get("min_rad",70)
     max_rad = input_params.get("max_rad",100)
+    sensitivity = 0.95 
     
     ## Parameters
     # constant for weight matrix
@@ -86,49 +106,55 @@ def convert_by_img(dest_img,
     grey_src_img = cv2.cvtColor(src_img, cv2.COLOR_BGR2GRAY)
     
     # To do : Check if binarization option is needed
-    _, grey_dest_img = cv2.threshold(grey_dest_img, 0, 255, cv2.THRESH_BINARY+cv2.THRESH_OTSU)
+#     _, grey_dest_img = cv2.threshold(grey_dest_img, 0, 255, cv2.THRESH_BINARY+cv2.THRESH_OTSU)
 #     _, grey_src_img = cv2.threshold(grey_src_img, 0, 255, cv2.THRESH_BINARY+cv2.THRESH_OTSU)
-    kernel = np.ones((5,5),np.uint8)
-    grey_dest_img = cv2.morphologyEx(grey_dest_img, cv2.MORPH_GRADIENT, kernel)
+#     kernel = np.ones((5,5),np.uint8)
+#     grey_dest_img = cv2.morphologyEx(grey_dest_img, cv2.MORPH_GRADIENT, kernel)
 
     ## 이미지 변환 -> dim : (3, 4, 1)
     ## 검출률 변경을 위해선 param2 변경
 
-    src_circles = cv2.HoughCircles(grey_src_img, 
-                                   cv2.HOUGH_GRADIENT,
-                                   1, 
-                                   max_rad*2, 
-                                   param1=param1,
-                                   param2=param2,
-                                   minRadius=min_rad,
-                                   maxRadius=max_rad)[0]
-
+#     src_circles = cv2.HoughCircles(grey_src_img, 
+#                                    cv2.HOUGH_GRADIENT,
+#                                    1, 
+#                                    max_rad*2, 
+#                                    param1=param1,
+#                                    param2=param2,
+#                                    minRadius=min_rad,
+#                                    maxRadius=max_rad)[0]
+    centers, r_estimated, metric = imfindcircles(grey_src_img, 
+                                                 [min_rad, max_rad],
+                                                sensitivity = sensitivity)
     
+    '''
+    numpy array 가져다 붙이는게 왜이리 어렵죠? ㅠㅠ 
+    '''
+    src_circles = np.concatenate((centers, r_estimated[:,np.newaxis]), axis = 0).T
+    src_circles = np.squeeze(src_circles)
+
     iter_count = 1
     num_centers = 0
     x_dist = 11
     y_dist = 11
     num_allowable_centers = 4
 
-    while x_dist > 5 or y_dist > 5 : 
+    while (x_dist > 5) or (y_dist > 5) : 
         while num_centers < num_allowable_centers :
             iter_count += 1
             
-            try : # Sometimes no circle is detected
-                dest_circles = cv2.HoughCircles(grey_dest_img, 
-                                                cv2.HOUGH_GRADIENT, 
-                                                1,
-                                                max_rad*2,
-                                                param1=param1, 
-                                                param2=param2, 
-                                                minRadius=min_rad,
-                                                maxRadius=max_rad)[0] 
+            try :
+                # Sometimes no circle is detected                
+                centers, r_estimated, metric = imfindcircles(grey_dest_img, 
+                                                             [min_rad, max_rad],
+                                                             sensitivity = sensitivity)
+                dest_circles = np.concatenate((centers, r_estimated[:,np.newaxis]), axis = 0).T
+                dest_circles = np.squeeze(dest_circles)
             except : 
                 dest_circles = []
 
             num_centers = len(dest_circles)
 
-            param2 -= 0.5
+            sensitivity += 0.1
 
             if iter_count > 200 : 
                 print('After 200 iteration, 4 circles are not detected.')
