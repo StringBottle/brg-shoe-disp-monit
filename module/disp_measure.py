@@ -79,6 +79,7 @@ def convert_by_path(dest_path, src_path):
 ## Function with ndarray(img)
 def displacement_measure(dest_img,
                          src_img,   
+                         src_circles = None,
                          **input_params
                         ):
     
@@ -122,15 +123,16 @@ def displacement_measure(dest_img,
 #                                    param2=param2,
 #                                    minRadius=min_rad,
 #                                    maxRadius=max_rad)[0]
-    centers, r_estimated, metric = imfindcircles(grey_src_img, 
-                                                 [min_rad, max_rad],
-                                                sensitivity = sensitivity)
-    
-    '''
-    numpy array 가져다 붙이는게 왜이리 어렵죠? ㅠㅠ 
-    '''
-    src_circles = np.concatenate((centers, r_estimated[:,np.newaxis]), axis = 0).T
-    src_circles = np.squeeze(src_circles)
+    if src_circles is not None : 
+        centers, r_estimated, metric = imfindcircles(grey_src_img, 
+                                                     [min_rad, max_rad],
+                                                    sensitivity = sensitivity)
+
+        '''
+        numpy array 가져다 붙이는게 왜이리 어렵죠? ㅠㅠ 
+        '''
+        src_circles = np.concatenate((centers, r_estimated[:,np.newaxis]), axis = 0).T
+        src_circles = np.squeeze(src_circles)
 
     iter_count = 1
     num_centers = 0
