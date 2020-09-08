@@ -104,7 +104,7 @@ def displacement_measure(dest_img,
 
     ## 흑백화면 생성 - For cv2.HoughCircles()
     grey_dest_img = cv2.cvtColor(dest_img, cv2.COLOR_BGR2GRAY)
-    grey_src_img = cv2.cvtColor(src_img, cv2.COLOR_BGR2GRAY)
+    
     
     # To do : Check if binarization option is needed
 #     _, grey_dest_img = cv2.threshold(grey_dest_img, 0, 255, cv2.THRESH_BINARY+cv2.THRESH_OTSU)
@@ -124,6 +124,7 @@ def displacement_measure(dest_img,
 #                                    minRadius=min_rad,
 #                                    maxRadius=max_rad)[0]
     if src_circles is not None : 
+        grey_src_img = cv2.cvtColor(src_img, cv2.COLOR_BGR2GRAY)
         centers, r_estimated, metric = imfindcircles(grey_src_img, 
                                                      [min_rad, max_rad],
                                                     sensitivity = sensitivity)
