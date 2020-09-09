@@ -159,7 +159,7 @@ def displacement_measure(dest_img,
 
             sensitivity += 0.1
 
-            if iter_count > 200 : 
+            if iter_count > 5 : 
                 print('After 200 iteration, 4 circles are not detected.')
                 return [0., 0., 0.], [[1, 1, 1], [1, 1, 1]]
             

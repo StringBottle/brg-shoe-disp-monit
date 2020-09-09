@@ -1,7 +1,7 @@
 {
 "59": {"min_rad": 35, "max_rad": 45, "param1": 200, "param2": 21},
 "195": {"min_rad": 77, "max_rad": 85, "param1": 200, "param2": 21},
-"196": {"min_rad": 77, "max_rad": 85, "param1": 200, "param2": 25},
+"196": {"min_rad": 77, "max_rad": 90, "param1": 200, "param2": 25},
 "199": {"min_rad": 77, "max_rad": 85, "param1": 200, "param2": 25},
 "200": {"min_rad": 77, "max_rad": 85, "param1": 200, "param2": 25},
 "203": {"min_rad": 77, "max_rad": 85, "param1": 200, "param2": 25},

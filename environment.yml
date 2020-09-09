@@ -10,3 +10,5 @@ dependencies:
     - matplotlib
     - jupyter
     - scipy
+    - pandas
+    - scikit-image

@@ -8,6 +8,7 @@ import cv2
 import pandas as pd
 import scipy
 import skimage
+import time
 
 '''
 Import 할 때 어떻게 호출해야 효율적일지 확인 부탁드립니다. 
@@ -20,7 +21,19 @@ Import 할 때 어떻게 호출해야 효율적일지 확인 부탁드립니다.
 from itertools import product
 from scipy.ndimage import convolve
 from skimage.measure import label, regionprops_table
+from skimage.morphology import reconstruction
 from numpy import matlib
+
+
+def logging_time(original_fn):
+    def wrapper_fn(*args, **kwargs):
+        start_time = time.time()
+        result = original_fn(*args, **kwargs)
+        end_time = time.time()
+        print("WorkingTime[{}]: {} sec".format(original_fn.__name__, end_time-start_time))
+        return result
+    return wrapper_fn
+
 
 def imread(filename, flags=cv2.IMREAD_COLOR, dtype=np.uint8):
     try:
@@ -31,6 +44,7 @@ def imread(filename, flags=cv2.IMREAD_COLOR, dtype=np.uint8):
     except Exception as e:
         print(e)
         return None
+    
 
 def normalizeControlPoints(pts):
     
@@ -128,6 +142,7 @@ def findProjectiveTransform(uv, xy):
 '''
 아래부터 Circle Detection 코딩 시작입니다. 
 '''
+
 def getGrayImage(img) : 
     
     '''
@@ -157,6 +172,7 @@ def imgradient(img):
         
     return Gx, Gy, gradientImg
 
+
 def getEdgePixels(gradientImg, edgeThresh): 
     Gmax = np.max(gradientImg[:])
     
@@ -174,6 +190,7 @@ def getEdgePixels(gradientImg, edgeThresh):
 
     return Ex, Ey
 
+
 def bsxfun_1d(row, col, mode = 'times') : 
     
     mat_from_row = matlib.repmat(row, col.shape[0], 1)
@@ -187,31 +204,7 @@ def bsxfun_1d(row, col, mode = 'times') :
     
     return mat
 
-def imreconstruct(marker: np.ndarray, mask: np.ndarray, radius: int = 1):
-    
-    '''
-    현재 이 코드에서 가장 시간을 많이 소요하는 상황입니다. ㅠㅠ 
-    Matlab의 imreconstruct를 구현해놓은 코드라고 인터넷에서 긁어 왔는데, 뭔가 연산에 있어 최적화가 필요할 것 같습니다. 
-    저도 아직 Matlab imreconstruct가 어떻게 구현되어 있는지 감이 안와서 확인이 더 필요한 상황입니다. 
-    '''
-    """Iteratively expand the markers white keeping them limited by the mask during each iteration.
 
-    :param marker: Grayscale image where initial seed is white on black background.
-    :param mask: Grayscale mask where the valid area is white on black background.
-    :param radius Can be increased to improve expansion speed while causing decreased isolation from nearby areas.
-    :returns A copy of the last expansion.
-    Written By Semnodime.
-    """
-    kernel = np.ones(shape=(radius * 2 + 1,) * 2, dtype=np.uint8)
-    while True:
-        expanded = cv2.dilate(src=marker, kernel=kernel)
-        cv2.bitwise_and(src1=expanded, src2=mask, dst=expanded)
-
-        # Termination criterion: Expansion didn't change the image at all
-        if (marker == expanded).all():
-            return expanded
-        marker = expanded
-        
 def accum(accmap, a, size=None ): 
     
     if not size : 
@@ -233,7 +226,8 @@ def accum(accmap, a, size=None ):
     result[x_1, x_0] = x[2]    
     
     return result
-        
+
+
 def chaccum(A, radiusRange, method = 'phasecode',  objPolarity = 'bright', edgeThresh = [] ) : 
     
     maxNumElemNHoodMat = 1e6
@@ -323,8 +317,7 @@ def chaccum(A, radiusRange, method = 'phasecode',  objPolarity = 'bright', edgeT
         ## Accumulate the votes in the parameter plane
         xc = xc[inside]
         yc = yc[inside]
-        
-        
+
         '''
         아래 어레이를 합치는 부분도 은근히 시간이 오래 걸리는 것 같더군요 ㅠㅠ 
         '''
@@ -345,6 +338,7 @@ def chaccum(A, radiusRange, method = 'phasecode',  objPolarity = 'bright', edgeT
     return accumMatrix, gradientImg
 
 
+
 def chcenters(accumMatrix, accumThresh) : 
     suppThreshold = accumThresh
     medFiltSize = 5
@@ -352,11 +346,12 @@ def chcenters(accumMatrix, accumThresh) :
     Hd = cv2.filter2D(accumMatrix,-1,kernel)
 
     suppThreshold = np.max(suppThreshold - np.spacing(suppThreshold), 0)
+   
 
-    Hd = imreconstruct(Hd-suppThreshold, Hd)
+    Hd = reconstruction(Hd-suppThreshold, Hd, method ='dilation')
 
     lm = scipy.ndimage.filters.maximum_filter(Hd, size=3)
-    bw = lm > np.max(lm)*2/3
+    bw = lm > np.max(lm)/2
     label_bw = label(bw)
 
     s = regionprops_table(label_bw, properties=['label','centroid'])
@@ -376,7 +371,7 @@ def chcenters(accumMatrix, accumThresh) :
 
 def chradiiphcode(centers, accumMatrix, radiusRange) :
     centers_int = np.asarray(centers, dtype = np.int64)
-    cenPhase = np.angle(accumMatrix[centers_int[0], centers_int[1]])
+    cenPhase = np.angle(accumMatrix[centers_int[1], centers_int[0]])
     lnR = np.log(radiusRange);
     
     # Inverse of modified form of Log-coding from Eqn. 8 in [1]
