@@ -9,6 +9,8 @@ import pandas as pd
 import scipy
 import skimage
 import time
+import re
+import ast
 
 '''
 Import 할 때 어떻게 호출해야 효율적일지 확인 부탁드립니다. 
@@ -23,6 +25,15 @@ from scipy.ndimage import convolve
 from skimage.measure import label, regionprops_table
 from skimage.morphology import reconstruction
 from numpy import matlib
+
+
+def str2array(s):
+    # Remove space after [
+    s=re.sub('\[ +', '[', s.strip())
+    # Replace commas and spaces
+    s=re.sub('[,\s]+', ', ', s)
+    return np.array(ast.literal_eval(s))
+
 
 
 def logging_time(original_fn):
@@ -351,7 +362,7 @@ def chcenters(accumMatrix, accumThresh) :
     Hd = reconstruction(Hd-suppThreshold, Hd, method ='dilation')
 
     lm = scipy.ndimage.filters.maximum_filter(Hd, size=3)
-    bw = lm > np.max(lm)/2
+    bw = lm > np.max(lm)/3
     label_bw = label(bw)
 
     s = regionprops_table(label_bw, properties=['label','centroid'])

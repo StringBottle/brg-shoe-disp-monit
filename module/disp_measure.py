@@ -9,6 +9,55 @@ import cv2
 from itertools import combinations 
 from .utils import findProjectiveTransform, imfindcircles
 
+def homography_transformation(src_circles, dest_circles, p_length = 50) : 
+    
+    src_matrix = np.array([
+        [src_circles[0][0], src_circles[0][1]],
+        [src_circles[1][0], src_circles[1][1]],
+        [src_circles[2][0], src_circles[2][1]],
+        [src_circles[3][0], src_circles[3][1]]
+    ])
+
+    # x value를 기준으로 sort 진행
+    src_matrix = src_matrix[src_matrix[:,0].argsort()]
+
+
+    # p_length에 따른 weight matrix 생성
+    weight = np.array([
+        [0, 0],
+        [0, p_length/2],
+        [p_length/2, 0],
+        [p_length/2, p_length/2]
+    ])
+    
+    # cv2.findHomography(src, desc, ...) 이용해서 호모그래피 matrix 찾기
+    h_matrix = findProjectiveTransform(src_matrix, weight).T
+
+    #############################################
+    ## dest 전처리
+    dest_vec1 = np.array([[dest_circles[0][0]], [dest_circles[0][1]], [1]])
+    dest_vec2 = np.array([[dest_circles[1][0]], [dest_circles[1][1]], [1]])
+    dest_vec3 = np.array([[dest_circles[2][0]], [dest_circles[2][1]], [1]])
+    dest_vec4 = np.array([[dest_circles[3][0]], [dest_circles[3][1]], [1]])
+
+    ## dest에 h_matrix 적용 (with inner product)
+    dist_1 = np.dot(h_matrix, dest_vec1)
+    dist_1 = dist_1 / dist_1[2]
+    
+    dist_2 = np.dot(h_matrix, dest_vec2)
+    dist_2 = dist_2 / dist_2[2]
+
+    dist_3 = np.dot(h_matrix, dest_vec3)
+    dist_4 = dist_3 / dist_3[2]
+
+    dist_4 = np.dot(h_matrix, dest_vec4)
+    dist_4 = dist_4 / dist_4[2]
+
+    ## 결과 도출 - result
+    result = (dist_1 + dist_2 + dist_3 + dist_4) / 4 - np.array([[p_length/4], [p_length/4], [1]])
+
+    return result[:2]
+
 ## Function that find four valid circles in dest_circles
 def find_valid_dest_circles(dest_circles):
     ## I. 상위 4개 원을 x value를 기준으로 sort 진행
@@ -174,60 +223,8 @@ def displacement_measure(dest_img,
         
         num_allowable_centers += 1
 
-    
-    # Modified by beetea
-    
 
-    ## Deprecated code since len(dest_circles) == 4 is always true
+    displacement = homography_transformation(src_circles, dest_circles)
 
 
-    ## src에 대한 호모그래피 좌표변환
-    # [[x1, y1], [x2, y2], ...]
-    src_matrix = np.array([
-        [src_circles[0][0], src_circles[0][1]],
-        [src_circles[1][0], src_circles[1][1]],
-        [src_circles[2][0], src_circles[2][1]],
-        [src_circles[3][0], src_circles[3][1]]
-    ])
-
-    # x value를 기준으로 sort 진행
-    src_matrix = src_matrix[src_matrix[:,0].argsort()]
-
-    # src_matrix를 Transpose : [[x1, x2, x3, x4], [y1, y2, y3, y4]]
-    # src_matrix = src_matrix.T
-
-    # p_length에 따른 weight matrix 생성
-    weight = np.array([
-        [0, 0],
-        [0, p_length/2],
-        [p_length/2, 0],
-        [p_length/2, p_length/2]
-    ])
-    
-    # cv2.findHomography(src, desc, ...) 이용해서 호모그래피 matrix 찾기
-    h_matrix = findProjectiveTransform(src_matrix, weight).T
-
-    #############################################
-    ## dest 전처리
-    dest_vec1 = np.array([[dest_circles[0][0]], [dest_circles[0][1]], [1]])
-    dest_vec2 = np.array([[dest_circles[1][0]], [dest_circles[1][1]], [1]])
-    dest_vec3 = np.array([[dest_circles[2][0]], [dest_circles[2][1]], [1]])
-    dest_vec4 = np.array([[dest_circles[3][0]], [dest_circles[3][1]], [1]])
-
-    ## dest에 h_matrix 적용 (with inner product)
-    dist_1 = np.dot(h_matrix, dest_vec1)
-    dist_1 = dist_1 / dist_1[2]
-    
-    dist_2 = np.dot(h_matrix, dest_vec2)
-    dist_2 = dist_2 / dist_2[2]
-
-    dist_3 = np.dot(h_matrix, dest_vec3)
-    dist_4 = dist_3 / dist_3[2]
-
-    dist_4 = np.dot(h_matrix, dest_vec4)
-    dist_4 = dist_4 / dist_4[2]
-
-    ## 결과 도출 - result
-    result = (dist_1 + dist_2 + dist_3 + dist_4) / 4 - np.array([[p_length/4], [p_length/4], [1]])
-
-    return result[:2], dest_circles
+    return displacement, dest_circles
