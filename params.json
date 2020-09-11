@@ -1,4 +1,8 @@
 {
+"047": {"min_rad": 70, "max_rad": 90, "param1": 200, "param2": 21},
+"050": {"min_rad": 70, "max_rad": 90, "param1": 200, "param2": 21},
+"056": {"min_rad": 70, "max_rad": 90, "param1": 200, "param2": 21},
+"059": {"min_rad": 35, "max_rad": 45, "param1": 200, "param2": 21},
 "098": {"min_rad": 80, "max_rad": 90, "param1": 200, "param2": 21},
 "097": {"min_rad": 70, "max_rad": 80, "param1": 200, "param2": 21},
 "094": {"min_rad": 75, "max_rad": 85, "param1": 200, "param2": 21},
