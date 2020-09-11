@@ -17,5 +17,5 @@ from module.disp_measure import convert_by_img
 
 src_img = imread('image path of target at original position')
 dest_img = imread('image path of target after moving')
-displacement = convert_by_img(dest_img, src_img)  # returns numpy array with [x_axis_disp, y_axis_disp]
+displacement = displacement_measure(dest_img, src_img)  # returns numpy array with [x_axis_disp, y_axis_disp]
 ```

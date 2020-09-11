@@ -84,7 +84,9 @@ def find_valid_dest_circles(dest_circles):
     # IV. 각 원의 집합들에 대하여 2번 과정에 대한 연산을 수행
     dist_list = []
     elem_list = []
+    dist_list_2 = []
     for elem in comb:
+        dist_list_tmp = []
         # elem 이 제 컴퓨터에서는 tuple로 반환되서 40번째 줄에서 인덱싱이 안되더군요 
         # 그래서 np.array로 반환하였습니다. 
         elem = np.asarray(elem) 
@@ -97,10 +99,17 @@ def find_valid_dest_circles(dest_circles):
         y_dist = abs((y[0] + y[3]) - (y[1] + y[2]))
         
         dist_list.append(x_dist + y_dist)
+        
+        dist_list_tmp.append(np.linalg.norm(target[0, :2] - target[1, :2]))
+        dist_list_tmp.append(np.linalg.norm(target[1, :2] - target[2, :2]))
+        dist_list_tmp.append(np.linalg.norm(target[2, :2] - target[3, :2]))
+        dist_list_tmp.append(np.linalg.norm(target[3, :2] - target[0, :2]))
+        dist_list_tmp = np.asarray(dist_list_tmp)
         elem_list.append(elem)
+        dist_list_2.append(np.mean(dist_list_tmp)-112)
     
     # V. 4번 연산을 수행하여 가장 낮은 값을 갖는 집합을 반환 
-    min_idx = np.argmin(dist_list)
+    min_idx = np.argmin(dist_list_2)
     dest_circles_with_min_dist = elem_list[min_idx]
     
     return dest_circles_with_min_dist
@@ -189,6 +198,7 @@ def displacement_measure(dest_img,
     x_dist = 11
     y_dist = 11
     num_allowable_centers = 4
+    dist_mean = 150
 
     while (x_dist > 5) or (y_dist > 5) : 
         while num_centers < num_allowable_centers :
