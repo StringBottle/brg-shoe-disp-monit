@@ -363,166 +363,261 @@ def VMWPCA_update(X0,PC,Q,alpha,SD_type,ind_x,ind):
     
     return X0, PC, Q      
 
-class apca_cas(op):
+class PCA(object):
+    def __init__(self, a, standardize=True):
+        """
+        compute the SVD of a and store data for PCA.  Use project to
+        project the data onto a reduced set of dimensions
+
+        Parameters
+        ----------
+        a : np.ndarray
+            A numobservations x numdims array
+        standardize : bool
+            True if input data are to be standardized. If False, only centering
+            will be carried out.
+
+        Attributes
+        ----------
+        a
+            A centered unit sigma version of input ``a``.
+
+        numrows, numcols
+            The dimensions of ``a``.
+
+        mu
+            A numdims array of means of ``a``. This is the vector that points
+            to the origin of PCA space.
+
+        sigma
+            A numdims array of standard deviation of ``a``.
+
+        fracs
+            The proportion of variance of each of the principal components.
+
+        s
+            The actual eigenvalues of the decomposition.
+
+        Wt
+            The weight vector for projecting a numdims point or array into
+            PCA space.
+
+        Y
+            A projected into PCA space.
+
+        Notes
+        -----
+        The factor loadings are in the ``Wt`` factor, i.e., the factor loadings
+        for the first principal component are given by ``Wt[0]``. This row is
+        also the first eigenvector.
+
+        """
+        n, m = a.shape
+        if n < m:
+            raise RuntimeError('we assume data in a is organized with '
+                               'numrows>numcols')
+
+        self.numrows, self.numcols = n, m
+        self.mu = a.mean(axis=0)
+        self.sigma = a.std(axis=0)
+        self.standardize = standardize
+
+        a = self.center(a)
+
+        self.a = a
+
+        U, s, Vh = np.linalg.svd(a, full_matrices=False)
+
+        # Note: .H indicates the conjugate transposed / Hermitian.
+
+        # The SVD is commonly written as a = U s V.H.
+        # If U is a unitary matrix, it means that it satisfies U.H = inv(U).
+
+        # The rows of Vh are the eigenvectors of a.H a.
+        # The columns of U are the eigenvectors of a a.H.
+        # For row i in Vh and column i in U, the corresponding eigenvalue is
+        # s[i]**2.
+
+        self.Wt = Vh
+
+        # save the transposed coordinates
+        Y = np.dot(Vh, a.T).T
+        self.Y = Y
+
+        # save the eigenvalues
+        self.s = s**2
+
+        # and now the contribution of the individual components
+        vars = self.s / len(s)
+        self.fracs = vars/vars.sum()
+
+    def project(self, x, minfrac=0.):
+        '''
+        project x onto the principle axes, dropping any axes where fraction
+        of variance<minfrac
+        '''
+        x = np.asarray(x)
+        if x.shape[-1] != self.numcols:
+            raise ValueError('Expected an array with dims[-1]==%d' %
+                             self.numcols)
+        Y = np.dot(self.Wt, self.center(x).T).T
+        mask = self.fracs >= minfrac
+        if x.ndim == 2:
+            Yreduced = Y[:, mask]
+        else:
+            Yreduced = Y[mask]
+        return Yreduced
+
+
+    def center(self, x):
+        '''
+        center and optionally standardize the data using the mean and sigma
+        from training set a
+        '''
+        if self.standardize:
+            return (x - self.mu)/self.sigma
+        else:
+            return (x - self.mu)
+
+
+def run_apca_cas(op):
     
-    def __init__(self, length, breadth, unit_cost=0):
-       
-        ## Intialization and Add path required m-files-
+    # Siginifiqance Level for Novelty Detection: Threshold
+    PCA_par['alpha'] = 0.95; # You can change it, but i recommend the values of 95% or 99%
 
-        ####################### OPTIONS #######################
+    #################### Do not chane the following options #################### 
 
-        PCA_par={};
+    # Scaling Method  
+    PCA_par['SD_type'] = 'Z-score' # Do not change it
 
-        # Filename for monitoring data
+    # Method for selecting number of the retained PCs
+    PCA_par['nPC_select_algorithm'] = 'eigengap' # Do not change it
 
-        PCA_par['fn_DB'] = op
+    # Delayed number for updating PCs to consider disturbance or measurement error
+    # PCA_par.n_stall=1;
+    # PCA_par.n_stall=3;
+    PCA_par['n_stall'] = 10;
+    
+    PCA_par['x'] = np.zeros((2, 2), dtype = np.int16)
+    PCA_par['x'][0] =[op['IND_x0'][0], op['IND_x0'][-1]]; # INITIAL TRAINIG DATA
+    PCA_par['x'][1]=[op['IND_x1'][0], op['IND_x1'][-1]]; # TEST DATA
+    PCA_par['d_indx'] = op['infor']['D_point'] # Sample index at damage ( 0: no damage // 700: damage at # sample index of 700)
+    
+    t = op['t']; # Assign Temp. to new variable of t
+    meas = np.hstack((np.transpose(t), op['f'][:,0:2])) # Assign Measurement to new variable of f
 
-        # Siginifiqance Level for Novelty Detection: Threshold
-        PCA_par['alpha'] = 0.95; # You can change it, but i recommend the values of 95% or 99%
+    ## PLOT RAW DATA
 
-        #################### Do not chane the following options #################### 
+    # To be updated 
+    #### MAIN LOOP FOR APCA based on Variable Moving Window PCA ####
 
-        # Scaling Method  
-        PCA_par['SD_type'] = 'Z-score' # Do not change it
+    ### DEFINE HYPER-PARAMETERS OF VMWPCA ###
 
-        # Method for selecting number of the retained PCs
-        PCA_par['nPC_select_algorithm'] = 'eigengap' # Do not change it
+    SD_type = PCA_par['SD_type'] # Scaling Method  
+    alpha = PCA_par['alpha'] # Siginifiqance Level for Novelty Detection: Threshold
+    nPC_select_algorithm = PCA_par['nPC_select_algorithm'] # Method for selecting number of the retained PCs
 
-        # Delayed number for updating PCs to consider disturbance or measurement error
-        # PCA_par.n_stall=1;
-        # PCA_par.n_stall=3;
-        PCA_par['n_stall'] = 10;
+    x0 = np.arange(PCA_par['x'][0, 0], PCA_par['x'][0, 1]+1) # Initial training samples
+    x1 = np.arange(PCA_par['x'][1, 0], PCA_par['x'][1, 1]+1) # Test samples
 
-        PCA_par['x'] = np.zeros((2, 2), dtype = np.int16)
-        PCA_par['x'][0] =[op['IND_x0'][0], op['IND_x0'][-1]]; # INITIAL TRAINIG DATA
-        PCA_par['x'][1]=[op['IND_x1'][0], op['IND_x1'][-1]]; # TEST DATA
-        PCA_par['d_indx'] = op['infor']['D_point'] # Sample index at damage ( 0: no damage // 700: damage at # sample index of 700)
+    PC = {}
+    PC['k_cluster'] = np.arange(0,4)  # of clusters for block-wise linearization
+    PC['n_stall'] = PCA_par['n_stall'] # Delayed number for updating PCs to consider disturbance or measurement error
 
-        t = op['t']; # Assign Temp. to new variable of t
-        meas = np.hstack((np.transpose(t), op['f'][:,0:2])) # Assign Measurement to new variable of f
+    ## STEP #1: Initial PCs based on initial training data
 
-        ## PLOT RAW DATA
+    # Training data set
+    # 
+    X0 = meas[x0,:]
+    numobs, numvars = X0.shape
+    mu0, sds0 = np.mean(X0, 0), np.std(X0, 0)
 
-        # To be updated 
+    # Standardization: Z-score (zero-mean and unit variance)
 
-        #### MAIN LOOP FOR APCA based on Variable Moving Window PCA ####
+    X0std=Standardization_Data(X0,mu0,sds0,numobs,SD_type); 
 
-        ### DEFINE HYPER-PARAMETERS OF VMWPCA ###
+    # PERFORM PCA
 
-    def train(cls):
+    pc = PCA(X0std, standardize=False)
+    loadings = pc.Wt.T
+    loadings = -loadings.copy()
+    loadings[:, 0] = -loadings[:, 0 ]
+    cov = loadings.dot(np.diag(pc.s)).dot(pc.Wt) / (loadings.shape[0] - 1)
+    scores = pc.Y
+    variances = np.sort(np.linalg.eig(cov)[0])[::-1]
+    tscores = hotelling_tsquared(pc)
 
-
-        SD_type = PCA_par['SD_type'] # Scaling Method  
-        alpha = PCA_par['alpha'] # Siginifiqance Level for Novelty Detection: Threshold
-        nPC_select_algorithm = PCA_par['nPC_select_algorithm'] # Method for selecting number of the retained PCs
-
-        x0 = np.arange(PCA_par['x'][0, 0], PCA_par['x'][0, 1]+1) # Initial training samples
-        x1 = np.arange(PCA_par['x'][1, 0], PCA_par['x'][1, 1]+1) # Test samples
-
-        PC = {}
-        PC['k_cluster'] = np.arange(0,4)  # of clusters for block-wise linearization
-        PC['n_stall'] = PCA_par['n_stall'] # Delayed number for updating PCs to consider disturbance or measurement error
-
-        ## STEP #1: Initial PCs based on initial training data
-
-        # Training data set
-        X0 = meas[x0,:]
-        numobs, numvars = X0.shape
-        mu0, sds0 = np.mean(X0, 0), np.std(X0, 0)
-
-        # Standardization: Z-score (zero-mean and unit variance)
-
-        X0std=Standardization_Data(X0,mu0,sds0,numobs,SD_type); 
-
-        # PERFORM PCA
-        pc = PCA(X0std, standardize=False)
-        loadings = pc.Wt.T
-        loadings = -loadings.copy()
-        loadings[:, 0] = -loadings[:, 0 ]
-        cov = loadings.dot(np.diag(pc.s)).dot(pc.Wt) / (loadings.shape[0] - 1)
-        scores = pc.Y
-        variances = np.sort(np.linalg.eig(cov)[0])[::-1]
-        tscores = hotelling_tsquared(pc)
-
-        # Extracting the retained PC  => Eq. (9) in Ref. (SHM, 2018)
-        Y = np.max(np.abs(np.diff(variances)))
-        IX = np.argmax(np.abs(np.diff(variances)))
-        n_pc = IX.copy()
-
-        if n_pc == 0 : res_idx = 1
-        else : res_idx = n_pc.copy()
-        residuals = (X0std - scores[:,0:n_pc+1]*loadings[:,0:n_pc+1].T)
-        Qdist = np.sqrt(np.sum(np.square(residuals),1));
-        m_Q=np.mean(Qdist)
-        V_Q=np.var(Qdist)
-        V=2*(np.square(m_Q))/V_Q;
-        distcrit = V_Q/(2*m_Q)*chi2.ppf(alpha,V) #  Threshold limit based on significance level
+    # Extracting the retained PC  => Eq. (9) in Ref. (SHM, 2018)
+    Y = np.max(np.abs(np.diff(variances)))
+    IX = np.argmax(np.abs(np.diff(variances)))
+    n_pc = IX.copy()
 
 
-        # Save results of the intial PC model from initial training data
-
-        X1 = {}
-        X1['f0']=X0
-        X1['mu0']=np.matlib.repmat(mu0,Qdist.shape[0],1)
-        X1['sds0']=np.matlib.repmat(sds0,Qdist.shape[0],1);
-
-        PC['loadings']=loadings 
-        PC['scores']=scores
-        PC['n_pc']=n_pc
-        PC['variances']=variances
-        PC['tscores']=tscores
-        PC['update']=1
-
-        Q = {}
-        Q['Qdist']=Qdist
-        Q['m_Q']=m_Q
-        Q['V_Q']=V_Q
-        Q['distcrit']=np.matlib.repmat(distcrit,Qdist.shape[0],1);
-        
-    def predict():
-        Q_lim=Q['distcrit']
-        PC['fault'] = []; # Pre-allocate faulty sample
-        PC['Updated'] = np.ones((Q['Qdist'].shape[0],1)) # Sample index of updating PC
-        
-        # Set minimum and maximum length of moving window size
-
-        #  the minimum and maximum length of moving window can be selected roughly based
-        # 
-        L_min = 40 # The value of minimum length can be adjusted based on your process
-        L_max = 1500 # The value of maximum length can be adjusted based on your process
-
-        X1['L_min'] = L_min
-        X1['L_max'] = L_max 
-        X1['L']=[] 
-        X1['N_cluster']=[]
-        X1['BIC']=[]
-
-        if Qdist.shape[0] < X1['L_max']:
-            X1['L'] = np.matlib.repmat(Qdist.shape[0], Qdist.shape[0],1)
-            X1['L0'] = X1['L']
-        else :
-            X1['L'] = np.matlib.repmat(X1['L_max'], Qdist.shape[0],1)
-            X1['L0'] = X1['L']
-
-        X1['t'] = op['t']
-        
-    def update():
-        ## STEP #3: Update PC models for test samples
-        ## You need to modify this part properly for your application
-        # Add the last threhold limit (herein, inititla training samples) from the previous PC model
-
-        Q['distcrit'] = np.vstack((Q['distcrit'], Q['distcrit'][-1]))
-
-        for i in range(0, x1.shape[0]) : # size(x1,2)
-
-            X1['f'] = np.vstack((X1['f0'][-int(X1['L'][-1][0]):,:], meas[x1[i],:]))        
-            X1, PC, Q = VMWPCA_update(X1,PC,Q,alpha,SD_type,x1[i],i)
+    if n_pc == 0 : res_idx = 1
+    else : res_idx = n_pc.copy()
+    residuals = (X0std - scores[:,0:n_pc+1]*loadings[:,0:n_pc+1].T)
+    Qdist = np.sqrt(np.sum(np.square(residuals),1));
+    m_Q=np.mean(Qdist)
+    V_Q=np.var(Qdist)
+    V=2*(np.square(m_Q))/V_Q;
+    distcrit = V_Q/(2*m_Q)*chi2.ppf(alpha,V) #  Threshold limit based on significance level
 
 
+    # Save results of the intial PC model from initial training data
 
+    X1 = {}
+    X1['f0']=X0
+    X1['mu0']=np.matlib.repmat(mu0,Qdist.shape[0],1)
+    X1['sds0']=np.matlib.repmat(sds0,Qdist.shape[0],1);
 
+    PC['loadings']=loadings 
+    PC['scores']=scores
+    PC['n_pc']=n_pc
+    PC['variances']=variances
+    PC['tscores']=tscores
+    PC['update']=1
 
+    Q = {}
+    Q['Qdist']=Qdist
+    Q['m_Q']=m_Q
+    Q['V_Q']=V_Q
+    Q['distcrit']=np.matlib.repmat(distcrit,Qdist.shape[0],1);
 
+    ## STEP #2: Post-processing of the initial PC model
 
+    Q_lim=Q['distcrit']
+    PC['fault'] = []; # Pre-allocate faulty sample
+    PC['Updated'] = np.ones((Q['Qdist'].shape[0],1)) # Sample index of updating PC
+    # Set minimum and maximum length of moving window size
 
+    #  the minimum and maximum length of moving window can be selected roughly based
+    L_min = 40 # The value of minimum length can be adjusted based on your process
+    L_max = 1500 # The value of maximum length can be adjusted based on your process
 
+    X1['L_min'] = L_min
+    X1['L_max'] = L_max 
+    X1['L']=[] 
+    X1['N_cluster']=[]
+    X1['BIC']=[]
+
+    if Qdist.shape[0] < X1['L_max']:
+        X1['L'] = np.matlib.repmat(Qdist.shape[0], Qdist.shape[0],1)
+        X1['L0'] = X1['L']
+    else :
+        X1['L'] = np.matlib.repmat(X1['L_max'], Qdist.shape[0],1)
+        X1['L0'] = X1['L']
+
+    X1['t'] = op['t']
+
+    ## STEP #3: Update PC models for test samples
+    ## You need to modify this part properly for your application
+    # Add the last threhold limit (herein, inititla training samples) from the previous PC model
+
+    Q['distcrit'] = np.vstack((Q['distcrit'], Q['distcrit'][-1]))
+
+    for i in range(0, x1.shape[0]) : # size(x1,2)
+
+        X1['f'] = np.vstack((X1['f0'][-int(X1['L'][-1][0]):,:], meas[x1[i],:]))        
+        X1, PC, Q = VMWPCA_update(X1,PC,Q,alpha,SD_type,x1[i],i)
+    
+    return X1, PC, Q
