@@ -12,19 +12,12 @@ import time
 import re
 import ast
 
-'''
-Import 할 때 어떻게 호출해야 효율적일지 확인 부탁드립니다. 
-라이브러리의 일부만 사용하는 모듈들을 아래와 같이 호출하는게 메모리 사용(?) 등에 있어 더 경제적일까요? 
-
-그리고 pull request, Conflict을 resolve 하는게 쉽지 않네요 ㅠㅠ 
-혹시 간편하게 하는 꿀팁도 알려주시면 좋을 것 같습니다. 
-'''
-
 from itertools import product
 from scipy.ndimage import convolve
 from skimage.measure import label, regionprops_table
 from skimage.morphology import reconstruction
 from numpy import matlib
+
 
 
 def str2array(s):
@@ -150,15 +143,8 @@ def findProjectiveTransform(uv, xy):
 
     return T
 
-'''
-아래부터 Circle Detection 코딩 시작입니다. 
-'''
-
 def getGrayImage(img) : 
-    
-    '''
-    입력된 이미지를 0부터 1사이의 변환 그레이스케일 이미지로 변환합니다. 
-    '''
+   
 
     N = img.ndim
     if N == 3 : # If RGB Image, 
@@ -187,9 +173,6 @@ def imgradient(img):
 def getEdgePixels(gradientImg, edgeThresh): 
     Gmax = np.max(gradientImg[:])
     
-    '''
-    아래 이미지 형식을 [0, 255, np.uint8]에서 [0, 1, np.float]로 변환하는 형식인데.. 크게 문제 없겠죠? 
-    '''
     if not edgeThresh :
         # Python cv2 doen't take float image for otsu, 
         # Thus, we convert it into np.uint8 for thresholding for a while 
@@ -280,13 +263,6 @@ def chaccum(A, radiusRange, method = 'phasecode',  objPolarity = 'bright', edgeT
     M, N = A.shape[0], A.shape[1]
     accumMatrix = np.zeros((M,N))
     
-    
-    '''
-    아래 루프는 입력된 이미지를 구간별로 나누어 
-    원이 있을 것 같은 곳을 투표(?)하는 알고리즘 인 것 같습니다. 
-    왠지 한 번에 처리해도 큰 문제는 없을 것 같습니다. 
-    확인 부탁드려요 
-    '''
     for i in range(0, lenE+1, xcStep) : 
         
         
@@ -294,10 +270,7 @@ def chaccum(A, radiusRange, method = 'phasecode',  objPolarity = 'bright', edgeT
         Ey_chunk = Ey[i:int(np.min((i+xcStep-1,lenE)))]
         idxE_chunk = idxE[i:int(np.min((i+xcStep-1,lenE)))]
         
-        '''
-        Matlab sub2ind, ind2sub 함수가 np.unravel_index, np.ravel_multi_index와 동일하다는데, 
-        이 부분에서 연산이 밀리지 않을까요?
-        '''
+
         chunckX = np.divide(Gx[np.unravel_index(idxE_chunk, Gx.shape, 'C')],
                   gradientImg[np.unravel_index(idxE_chunk, gradientImg.shape, 'C')])
 
@@ -329,18 +302,7 @@ def chaccum(A, radiusRange, method = 'phasecode',  objPolarity = 'bright', edgeT
         xc = xc[inside]
         yc = yc[inside]
 
-        '''
-        아래 어레이를 합치는 부분도 은근히 시간이 오래 걸리는 것 같더군요 ㅠㅠ 
-        '''
         xyc = np.asarray(np.stack((xc[:], yc[:])), dtype= np.int64)
-        
-        '''
-        Matlab accumarray함수와 동일한 Python 구현이 없어서 제가 Pandas를 이용해서 대략 
-        accum이라는 함수로 구현해보았습니다. 해당 함수 확인 부탁드립니다. 
-        
-        또한 위에 제가 xyc로 합치는 부분을 굳이 위에서 합치지 않고 accum 함수 밑에 들어가서 
-        확인이 가능할 것 같은데 검토 부탁드려요 
-        '''
 
         accumMatrix = accumMatrix + accum(xyc.T, w[inside], size=[M, N])
 
@@ -393,9 +355,7 @@ def chradiiphcode(centers, accumMatrix, radiusRange) :
 
 def imfindcircles(A, radiusRange,  ObjectPolarity = 'bright', sensitivity = 0.95):
     
-    '''
-    Main 함수가 동작하는 부분입니다. 
-    '''
+    
 
     [accumMatrix, gradientImg] = chaccum(A, radiusRange, objPolarity=ObjectPolarity);
 
@@ -415,3 +375,17 @@ def imfindcircles(A, radiusRange,  ObjectPolarity = 'bright', sensitivity = 0.95
     r_estimated = chradiiphcode(centers, accumMatrix, radiusRange)
     
     return centers, r_estimated, metric
+
+
+
+def circle_detection_multi_thread(img_name, param_config):
+    sensor_num = str(os.path.basename(img_name)[4:7])
+    params = param_config[sensor_num]
+    img = imread(img_name)
+    sensitivity = params['sensitivity']
+    centers, r_estimated, metric = imfindcircles(img, 
+                                         [params['min_rad'], params['max_rad']],
+                                        sensitivity = sensitivity)
+    circles = np.concatenate((centers, r_estimated[:,np.newaxis]), axis = 0).T
+    circles = np.squeeze(circles)
+    return circles
