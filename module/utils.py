@@ -12,12 +12,69 @@ import time
 import re
 import ast
 
-from itertools import product
+from itertools import product, combinations
 from scipy.ndimage import convolve
 from skimage.measure import label, regionprops_table
 from skimage.morphology import reconstruction
 from numpy import matlib
 
+
+
+## Function that find four valid circles in dest_circles
+def find_valid_dest_circles(dest_circles):
+    ## I. 상위 4개 원을 x value를 기준으로 sort 진행
+    target = dest_circles[0:4] # 상위 4개 원 추출
+    target = target[target[:,0].argsort()] # 이에 대해 sort
+
+    x = target[:, 0] # extract x value of circles - get col vector
+    y = target[:, 1] # extract y value of circles - get col vector
+
+    ## II. 정렬 후 대각선으로 위치한 원들의 좌표를 더한 후...
+    ## 각 좌표의 차이로 계산되어야해서 abs를 추가하였습니다. 
+    x_dist = abs((x[0] + x[3]) - (x[1] + x[2]))
+    y_dist = abs((y[0] + y[3]) - (y[1] + y[2]))
+    
+
+    # ISSUE: BH님이 말씀하신 criteria가 이것이 맞는지?
+    # A : 넵 전달드린 criteria를 정확하게 작성해주셨습니다. 
+    if (x_dist < 10.0) and (y_dist < 10.0): # nice case
+        return dest_circles[0:4]
+    
+    ## III. 탐지된 원들 내에서 4개의 원을 추출하는 모든 경우의 수에 따라 원의 집합을 생성
+    ## combination으로 계산되어도 문제 없습니다. 
+    comb = combinations(dest_circles, 4) # [[[x1, y1, r1], [x2, y2, r2], ...], [4], [4], [4], ...]
+    # IV. 각 원의 집합들에 대하여 2번 과정에 대한 연산을 수행
+    dist_list = []
+    elem_list = []
+    dist_list_2 = []
+    for elem in comb:
+        dist_list_tmp = []
+        # elem 이 제 컴퓨터에서는 tuple로 반환되서 40번째 줄에서 인덱싱이 안되더군요 
+        # 그래서 np.array로 반환하였습니다. 
+        elem = np.asarray(elem) 
+        elem = elem[elem[:,0].argsort()] # 이에 대해 sort
+        # ISSUE: 각 elem에 대해서 x_val 기준 정렬을 진행해야하는가?
+        x = elem[:, 0] # extract x value of circles - get col vector
+        y = elem[:, 1] # extract y value of circles - get col vector
+        
+        x_dist = abs((x[0] + x[3]) - (x[1] + x[2]))
+        y_dist = abs((y[0] + y[3]) - (y[1] + y[2]))
+        
+        dist_list.append(x_dist + y_dist)
+        
+        dist_list_tmp.append(np.linalg.norm(target[0, :2] - target[1, :2]))
+        dist_list_tmp.append(np.linalg.norm(target[1, :2] - target[2, :2]))
+        dist_list_tmp.append(np.linalg.norm(target[2, :2] - target[3, :2]))
+        dist_list_tmp.append(np.linalg.norm(target[3, :2] - target[0, :2]))
+        dist_list_tmp = np.asarray(dist_list_tmp)
+        elem_list.append(elem)
+        dist_list_2.append(np.mean(dist_list_tmp)-112)
+    
+    # V. 4번 연산을 수행하여 가장 낮은 값을 갖는 집합을 반환 
+    min_idx = np.argmin(dist_list_2)
+    dest_circles_with_min_dist = elem_list[min_idx]
+    
+    return dest_circles_with_min_dist
 
 
 def str2array(s):
@@ -318,8 +375,7 @@ def chcenters(accumMatrix, accumThresh) :
     kernel = np.ones((medFiltSize, medFiltSize),np.float32)/medFiltSize**2
     Hd = cv2.filter2D(accumMatrix,-1,kernel)
 
-    suppThreshold = np.max(suppThreshold - np.spacing(suppThreshold), 0)
-   
+    suppThreshold = np.max((suppThreshold - np.spacing(suppThreshold), 0))   
 
     Hd = reconstruction(Hd-suppThreshold, Hd, method ='dilation')
 
@@ -383,9 +439,22 @@ def circle_detection_multi_thread(img_name, param_config):
     params = param_config[sensor_num]
     img = imread(img_name)
     sensitivity = params['sensitivity']
-    centers, r_estimated, metric = imfindcircles(img, 
-                                         [params['min_rad'], params['max_rad']],
-                                        sensitivity = sensitivity)
-    circles = np.concatenate((centers, r_estimated[:,np.newaxis]), axis = 0).T
-    circles = np.squeeze(circles)
-    return circles
+    circles = []
+    while len(circles) < 4 :
+        centers, r_estimated, metric = imfindcircles(img, 
+                                                     [params['min_rad'], params['max_rad']],
+                                                     sensitivity = sensitivity)
+        circles = np.concatenate((centers, r_estimated[:,np.newaxis]), axis = 0).T
+        circles = np.squeeze(circles)
+        sensitivity += 0.01
+        if (sensitivity > 1) and (len(circles) < 4) : 
+            width = img.shape[0]
+            height = img.shape[1]
+            radius = (params['max_rad']+params['min_rad'])/2
+            step = radius*1.25
+            circles = np.asarray([[height/2+step, width/2+step, radius],
+                     [height/2-step, width/2+step, radius],
+                     [height/2-step, width/2-step, radius],
+                     [height/2+step, width/2-step, radius]])
+
+    return find_valid_dest_circles(circles)

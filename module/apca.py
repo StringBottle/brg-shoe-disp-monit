@@ -214,7 +214,7 @@ def variable_window_length_by_kmeansLBG(X1,PC,SD_type):
             
     return X1 
 
-def VMWPCA_update(X0,PC,Q,alpha,SD_type,ind_x,ind): 
+def VMWPCA_update(X0, X1,PC,Q,alpha,SD_type,ind_x,ind): 
     
     f, mu0, sds0 = X0['f'], X0['mu0'], X0['sds0']
     loadings, n_pc, variances = PC['loadings'], PC['n_pc'], PC['variances']
@@ -483,6 +483,7 @@ class PCA(object):
 def run_apca_cas(op):
     
     # Siginifiqance Level for Novelty Detection: Threshold
+    PCA_par = {}
     PCA_par['alpha'] = 0.95; # You can change it, but i recommend the values of 95% or 99%
 
     #################### Do not chane the following options #################### 
@@ -501,7 +502,6 @@ def run_apca_cas(op):
     PCA_par['x'] = np.zeros((2, 2), dtype = np.int16)
     PCA_par['x'][0] =[op['IND_x0'][0], op['IND_x0'][-1]]; # INITIAL TRAINIG DATA
     PCA_par['x'][1]=[op['IND_x1'][0], op['IND_x1'][-1]]; # TEST DATA
-    PCA_par['d_indx'] = op['infor']['D_point'] # Sample index at damage ( 0: no damage // 700: damage at # sample index of 700)
     
     t = op['t']; # Assign Temp. to new variable of t
     meas = np.hstack((np.transpose(t), op['f'][:,0:2])) # Assign Measurement to new variable of f
@@ -618,6 +618,6 @@ def run_apca_cas(op):
     for i in range(0, x1.shape[0]) : # size(x1,2)
 
         X1['f'] = np.vstack((X1['f0'][-int(X1['L'][-1][0]):,:], meas[x1[i],:]))        
-        X1, PC, Q = VMWPCA_update(X1,PC,Q,alpha,SD_type,x1[i],i)
+        X1, PC, Q = VMWPCA_update(X1, X1,PC,Q,alpha,SD_type,x1[i],i)
     
-    return X1, PC, Q
+    return X1, PC, Q 
