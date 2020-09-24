@@ -12,4 +12,4 @@ dependencies:
     - pandas
     - scikit-image
     - h5py
-    - matplotlib==2.2.0
+    - matplotlib
