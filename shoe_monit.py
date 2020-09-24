@@ -42,46 +42,43 @@ class ShoeMonitObj():
         self.img_snsr_list = self.snsr_info[(self.snsr_info['Sensor Type'] == 'Img')]['Sensor ID']
         self.tmp_snsr_list = self.snsr_info[(self.snsr_info['Sensor Type'] == 'Tmp')]['Sensor ID']
         
-    def get_data_list(anal_range = [20200901, 90200901], apca_group, install_year,):
+    def get_data_list(self, snsr_type, anal_range = [20200901, 90200901]):
         
-        for snsr_id in self.img_snsr_list:
+        # To-do:
+        # Add filtering option for block group, sensor_num, etc
+        
+        if snsr_type == 'Img': 
+            snsr_list = self.img_snsr_list
+        elif snsr_type == 'Tmp' :
+            snsr_list = self.tmp_snsr_list
+            
+        data_list = []
+            
+        for snsr_id in snsr_list:
         # check installation year 
 
-        install_year = self.snsr_info[(self.snsr_info['Sensor ID'] == snsr_id)]['Sensor Installation Year'].values[0]
-        img_foler_name = osp.join(dataset_folder, str(install_year), 'data')
-        snsr_img_list = glob(osp.join(img_foler_name, 'Img_' + str(snsr_id).zfill(3)+'*.jpg'))
+            install_year = self.snsr_info[(self.snsr_info['Sensor ID'] == snsr_id)]['Sensor Installation Year'].values[0]
+            data_folder_name = osp.join(self.dataset_folder, str(install_year), 'data')
+            snsr_data_list = glob(osp.join(data_folder_name, snsr_type + '_' + str(snsr_id).zfill(3)+'*.jpg'))
 
-        for snsr_img in snsr_img_list: 
-            snsr_img_date = int(osp.basename(snsr_img)[8:16])
-            if (snsr_img_date >= anal_range[0]) and (snsr_img_date <= anal_range[1]):
-                img_list_for_cd.append(snsr_img)
+        for snsr_data in tqdm(snsr_data_list): 
+            snsr_data_date = int(osp.basename(snsr_data)[8:16])
 
-
-        img_list_for_cd.sort()
-        
-        return 
+            if (snsr_data_date >= anal_range[0]) and (snsr_data_date <= anal_range[1]):
+                
+                data_list.append(snsr_data)
+                
+        data_list.sort()
+       
+        return data_list
         
         
     
-    def crcl_det(anal_range=[20200901, 90200901], apca_group = None,
+    def crcl_det(self, anal_range=[20200901, 90200901], apca_group = None,
                 overwrite_anal_table = True):
         
-        img_list_for_cd = []
-
-        for snsr_id in self.img_snsr_list:
-            # check installation year 
-
-            install_year = self.snsr_info[(self.snsr_info['Sensor ID'] == snsr_id)]['Sensor Installation Year'].values[0]
-            img_foler_name = osp.join(dataset_folder, str(install_year), 'data')
-            snsr_img_list = glob(osp.join(img_foler_name, 'Img_' + str(snsr_id).zfill(3)+'*.jpg'))
-
-            for snsr_img in snsr_img_list: 
-                snsr_img_date = int(osp.basename(snsr_img)[8:16])
-                if (snsr_img_date >= anal_range[0]) and (snsr_img_date <= anal_range[1]):
-                    img_list_for_cd.append(snsr_img)
-
-
-        img_list_for_cd.sort()
+        
+        img_list_for_cd = self.get_data_list(anal_range=anal_range, snsr_type='Img')
         run_circle_detection_list = []
 
         # create a list of imgs to which re-run circle detection 
@@ -96,7 +93,7 @@ class ShoeMonitObj():
                 run_circle_detection_list.append(img_file)
 
         if run_circle_detection_list : 
-            run_circles_list = p_map(partial(circle_detection_multi_thread, param_config=param_config), run_circle_detection_list)
+            run_circles_list = p_map(partial(circle_detection_multi_thread, param_config=self.param_config), run_circle_detection_list)
             
 
             for img_name, circles in zip(run_circle_detection_list, run_circles_list):
@@ -107,12 +104,12 @@ class ShoeMonitObj():
                 s = pd.Series(new_row, index=self.anal_table.columns )
                 self.anal_table = self.anal_table.append(s, ignore_index=True)
                 
-            if overwrite_table : 
+            if overwrite_anal_table : 
 
                 self.anal_table.sort_values(by = 'image_name')
                 self.anal_table.to_csv(self.anal_table_filename, index=False)
             
-    def disp_measure():
+    def disp_measure(self):
         '''
         2. Convert circle center coord to displacement 
         '''
