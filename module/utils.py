@@ -262,20 +262,20 @@ def accum(accmap, a, size=None ):
         result = np.zeros((np.max(accmap[:, 0]), np.max(accmap[:, 1])), dtype=np.complex_) 
     
     else :
-        result = np.zeros(size, dtype=np.complex_) 
-        
-    a = a[:, np.newaxis]
-    concat = np.hstack((accmap, a))
-    concat = concat[concat[:, 0].argsort()] # 이에 대해 sort
-    
-    df = pd.DataFrame(concat)
-    x = df.groupby([0, 1]).sum().reset_index()[range(3)] #range(5) adjusts ordering 
-    
-    x_0 = np.asarray(x[0], dtype = np.int64) - 1
-    x_1 = np.asarray(x[1], dtype = np.int64) - 1
+        result = np.zeros(size, dtype=np.complex_)
 
-    result[x_1, x_0] = x[2]    
-    
+    # a = a[:, np.newaxis]
+    np.add.at(result, (accmap[:, 1]-1, accmap[:, 0]-1), a)
+    # concat = np.hstack((accmap, a))
+    # concat = concat[concat[:, 0].argsort()] # 이에 대해 sort
+    # df = pd.DataFrame(concat)
+
+    # x = df.groupby([0, 1]).sum().reset_index()[range(3)] #range(5) adjusts ordering
+
+    # x_0 = np.asarray(x[0], dtype = np.int64) - 1
+    # x_1 = np.asarray(x[1], dtype = np.int64) - 1
+
+    # result[x_1, x_0] = x[2]
     return result
 
 
