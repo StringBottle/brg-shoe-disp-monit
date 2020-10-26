@@ -82,6 +82,7 @@ def str2array(s):
     s=re.sub('\[ +', '[', s.strip())
     # Replace commas and spaces
     s=re.sub('[,\s]+', ', ', s)
+    s=re.sub('\x00', '', s)
     return np.array(ast.literal_eval(s))
 
 
@@ -432,10 +433,11 @@ def imfindcircles(A, radiusRange,  ObjectPolarity = 'bright', sensitivity = 0.95
     
     return centers, r_estimated, metric
 
-
-
 def circle_detection_multi_thread(img_name, param_config):
-    sensor_num = str(os.path.basename(img_name)[4:7])
+    img_basename = os.path.basename(img_name)
+    sensor_num = str(img_basename[4:7])
+    date = img_basename[8:8+8]
+    time = img_basename[17:17+6]
     params = param_config[sensor_num]
     img = imread(img_name)
     sensitivity = params['sensitivity']
@@ -447,14 +449,12 @@ def circle_detection_multi_thread(img_name, param_config):
         circles = np.concatenate((centers, r_estimated[:,np.newaxis]), axis = 0).T
         circles = np.squeeze(circles)
         sensitivity += 0.01
-        if (sensitivity > 1) and (len(circles) < 4) : 
-            width = img.shape[0]
-            height = img.shape[1]
-            radius = (params['max_rad']+params['min_rad'])/2
-            step = radius*1.25
-            circles = np.asarray([[height/2+step, width/2+step, radius],
-                     [height/2-step, width/2+step, radius],
-                     [height/2-step, width/2-step, radius],
-                     [height/2+step, width/2-step, radius]])
+        if ((sensitivity > 1) and (len(circles) < 4)) or (len(circles) > 10): 
+#             width = img.shape[0]
+#             height = img.shape[1]
+#             radius = (params['max_rad']+params['min_rad'])/2
+#             step = radius*1.25
+            circles = 'No circle is detected or Too manys are detected.'
+            return sensor_num, date, time, circles
 
-    return find_valid_dest_circles(circles)
+    return sensor_num, date, time,find_valid_dest_circles(circles)

@@ -5,7 +5,7 @@ import json
 import scipy.io as spio
 import matplotlib.pyplot as plt 
 import pickle
-from matplotlib.mlab import PCA
+
 from scipy.stats.distributions import chi2
 from numpy import matlib
 
@@ -241,7 +241,7 @@ def VMWPCA_update(X0, X1,PC,Q,alpha,SD_type,ind_x,ind):
     
     residuals_val = X1std - np.matmul(scores1[:,:load_id ],loadings[:,:load_id].T)
     
-    Qdist_val = np.sqrt(np.divide(np.sum(np.square(residuals_val),1), (numvars-2)));
+    Qdist_val = np.sqrt(np.divide(np.sum(np.square(residuals_val),1), 1)) # (numvars-1)));
     Qdist = np.hstack((Qdist, Qdist_val))
 
     ## CHECK ANOMALITY
@@ -495,8 +495,8 @@ def run_apca_cas(op):
     PCA_par['nPC_select_algorithm'] = 'eigengap' # Do not change it
 
     # Delayed number for updating PCs to consider disturbance or measurement error
-    # PCA_par.n_stall=1;
-    # PCA_par.n_stall=3;
+#     PCA_par.n_stall=1;
+#     PCA_par.n_stall=3;
     PCA_par['n_stall'] = 10;
     
     PCA_par['x'] = np.zeros((2, 2), dtype = np.int16)
@@ -504,7 +504,7 @@ def run_apca_cas(op):
     PCA_par['x'][1]=[op['IND_x1'][0], op['IND_x1'][-1]]; # TEST DATA
     
     t = op['t']; # Assign Temp. to new variable of t
-    meas = np.hstack((np.transpose(t), op['f'][:,0:2])) # Assign Measurement to new variable of f
+    meas = np.hstack((np.transpose(t), op['f'][:,0:])) # Assign Measurement to new variable of f
 
     ## PLOT RAW DATA
 

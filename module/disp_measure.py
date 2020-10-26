@@ -2,12 +2,30 @@
 # -*- coding: utf-8 -*-
 # This module uses Numpy & OpenCV(opencv-python). Please install before use it.
 
-import itertools
-import os.path
 import numpy as np
 import cv2
 from itertools import combinations 
 from .utils import findProjectiveTransform, imfindcircles
+
+def order_points(pts):
+    # sort the points based on their x-coordinates
+    xSorted = pts[np.argsort(pts[:, 0]), :]
+    # grab the left-most and right-most points from the sorted
+    # x-roodinate points
+    leftMost = xSorted[:2, :]
+    rightMost = xSorted[2:, :]
+    # now, sort the left-most coordinates according to their
+    # y-coordinates so we can grab the top-left and bottom-left
+    # points, respectively
+    leftMost = leftMost[np.argsort(leftMost[:, 1]), :]
+    (lm1, lm2) = leftMost
+    # now that we have the top-left coordinate, use it as an
+    # anchor to calculate the Euclidean distance between the
+    # top-left and right-most points; by the Pythagorean
+    # theorem, the point with the largest distance will be
+    # our bottom-right point
+    (rm1, rm2) = rightMost[np.argsort(rightMost[:, 1]), :]
+    return np.array([lm1, lm2, rm1, rm2])
 
 def homography_transformation(src_circles, dest_circles, p_length = 50) : 
     
@@ -19,7 +37,8 @@ def homography_transformation(src_circles, dest_circles, p_length = 50) :
     ])
 
     # x value를 기준으로 sort 진행
-    src_matrix = src_matrix[src_matrix[:,0].argsort()]
+    src_matrix = order_points(src_matrix)
+    dest_circles = order_points(dest_circles)
 
 
     # p_length에 따른 weight matrix 생성
@@ -48,7 +67,7 @@ def homography_transformation(src_circles, dest_circles, p_length = 50) :
     dist_2 = dist_2 / dist_2[2]
 
     dist_3 = np.dot(h_matrix, dest_vec3)
-    dist_4 = dist_3 / dist_3[2]
+    dist_3 = dist_3 / dist_3[2]
 
     dist_4 = np.dot(h_matrix, dest_vec4)
     dist_4 = dist_4 / dist_4[2]
@@ -117,14 +136,7 @@ def find_valid_dest_circles(dest_circles):
 ## Function with Path
 def convert_by_path(dest_path, src_path):
     
-    '''
-    현재 코드를 쓸 때 displacement_measure가 
-    source 이미지의 원도 탐지하고, dest이미지의 원도 탐지해서 
-    연산이 두배로 소요됩니다. 이 부분도 구현이 필요할 것 같습니다. 
-    혹은 displacement_measure에 pre-determine 된 원의 위치를 집어 넣을 수 있도록 
-    구현하면 좋을 것 같습니다. 
-    
-    '''
+
     
     dest_img = cv2.imread(dest_path)
     dest_img = cv2.medianBlur(dest_img, 5)
@@ -141,14 +153,7 @@ def displacement_measure(dest_img,
                          **input_params
                         ):
     
-    '''
-    아래 세부 변수들은 imfindcircels를 사용하게 되면 편집될 예정입니다. 
-    
-    변수들 불러올 때 **용법을 써서 동적으로 입력값을 받고 싶은데.. ㅎㅎ 
-    이 부분도 헷갈리던데 확인 부탁드려요 ㅠㅠ 
-    아래처럼 쓰는 것은 조금 지저분해 보입니다. 
-    '''
-    
+   
     param1 = input_params.get("param1",200) 
     param2 = input_params.get("param2",25)
     p_length = input_params.get("p_length",50)
@@ -187,9 +192,6 @@ def displacement_measure(dest_img,
                                                      [min_rad, max_rad],
                                                     sensitivity = sensitivity)
 
-        '''
-        numpy array 가져다 붙이는게 왜이리 어렵죠? ㅠㅠ 
-        '''
         src_circles = np.concatenate((centers, r_estimated[:,np.newaxis]), axis = 0).T
         src_circles = np.squeeze(src_circles)
 
@@ -233,8 +235,6 @@ def displacement_measure(dest_img,
         
         num_allowable_centers += 1
 
-
     displacement = homography_transformation(src_circles, dest_circles)
-
 
     return displacement, dest_circles
