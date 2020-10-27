@@ -118,8 +118,6 @@ def displacement_measure(dest_img,
         dest_img = adaptiveThreshold_3ch(dest_img, min_rad)
         src_img = adaptiveThreshold_3ch(src_img, min_rad)
         
-        
-        
     
     if src_circles is None : 
 #         grey_src_img = cv2.cvtColor(src_img, cv2.COLOR_BGR2GRAY)
