@@ -5,7 +5,7 @@
 import numpy as np
 import cv2
 from itertools import combinations 
-from .utils import findProjectiveTransform, imfindcircles
+from .utils import findProjectiveTransform, imfindcircles, find_valid_dest_circles, adjust_gamma, adaptiveThreshold_3ch
 
 def order_points(pts):
     # sort the points based on their x-coordinates
@@ -77,61 +77,6 @@ def homography_transformation(src_circles, dest_circles, p_length = 50) :
 
     return result[:2]
 
-## Function that find four valid circles in dest_circles
-def find_valid_dest_circles(dest_circles):
-    ## I. 상위 4개 원을 x value를 기준으로 sort 진행
-    target = dest_circles[0:4] # 상위 4개 원 추출
-    target = target[target[:,0].argsort()] # 이에 대해 sort
-
-    x = target[:, 0] # extract x value of circles - get col vector
-    y = target[:, 1] # extract y value of circles - get col vector
-
-    ## II. 정렬 후 대각선으로 위치한 원들의 좌표를 더한 후...
-    ## 각 좌표의 차이로 계산되어야해서 abs를 추가하였습니다. 
-    x_dist = abs((x[0] + x[3]) - (x[1] + x[2]))
-    y_dist = abs((y[0] + y[3]) - (y[1] + y[2]))
-    
-
-    # ISSUE: BH님이 말씀하신 criteria가 이것이 맞는지?
-    # A : 넵 전달드린 criteria를 정확하게 작성해주셨습니다. 
-    if (x_dist < 10.0) and (y_dist < 10.0): # nice case
-        return dest_circles[0:4]
-    
-    ## III. 탐지된 원들 내에서 4개의 원을 추출하는 모든 경우의 수에 따라 원의 집합을 생성
-    ## combination으로 계산되어도 문제 없습니다. 
-    comb = combinations(dest_circles, 4) # [[[x1, y1, r1], [x2, y2, r2], ...], [4], [4], [4], ...]
-    # IV. 각 원의 집합들에 대하여 2번 과정에 대한 연산을 수행
-    dist_list = []
-    elem_list = []
-    dist_list_2 = []
-    for elem in comb:
-        dist_list_tmp = []
-        # elem 이 제 컴퓨터에서는 tuple로 반환되서 40번째 줄에서 인덱싱이 안되더군요 
-        # 그래서 np.array로 반환하였습니다. 
-        elem = np.asarray(elem) 
-        elem = elem[elem[:,0].argsort()] # 이에 대해 sort
-        # ISSUE: 각 elem에 대해서 x_val 기준 정렬을 진행해야하는가?
-        x = elem[:, 0] # extract x value of circles - get col vector
-        y = elem[:, 1] # extract y value of circles - get col vector
-        
-        x_dist = abs((x[0] + x[3]) - (x[1] + x[2]))
-        y_dist = abs((y[0] + y[3]) - (y[1] + y[2]))
-        
-        dist_list.append(x_dist + y_dist)
-        
-        dist_list_tmp.append(np.linalg.norm(target[0, :2] - target[1, :2]))
-        dist_list_tmp.append(np.linalg.norm(target[1, :2] - target[2, :2]))
-        dist_list_tmp.append(np.linalg.norm(target[2, :2] - target[3, :2]))
-        dist_list_tmp.append(np.linalg.norm(target[3, :2] - target[0, :2]))
-        dist_list_tmp = np.asarray(dist_list_tmp)
-        elem_list.append(elem)
-        dist_list_2.append(np.mean(dist_list_tmp)-112)
-    
-    # V. 4번 연산을 수행하여 가장 낮은 값을 갖는 집합을 반환 
-    min_idx = np.argmin(dist_list_2)
-    dest_circles_with_min_dist = elem_list[min_idx]
-    
-    return dest_circles_with_min_dist
 
 ## Function with Path
 def convert_by_path(dest_path, src_path):
@@ -149,46 +94,36 @@ def convert_by_path(dest_path, src_path):
 ## Function with ndarray(img)
 def displacement_measure(dest_img,
                          src_img,   
+                         params = None,
                          src_circles = None,
-                         **input_params
                         ):
     
    
-    param1 = input_params.get("param1",200) 
-    param2 = input_params.get("param2",25)
-    p_length = input_params.get("p_length",50)
-    min_rad = input_params.get("min_rad",70)
-    max_rad = input_params.get("max_rad",100)
-    sensitivity = 0.95 
+    min_rad = params.get("min_rad",70)
+    max_rad = params.get("max_rad",100)
+    sensitivity = params.get("sensitivity",0.98)
+    gamma = float(params.get("gamma", 1.0))
+    binarization = params.get("binarization", 0)
+
     
     ## Parameters
     # constant for weight matrix
     # set max, min radius of finding circles
-
-    ## 흑백화면 생성 - For cv2.HoughCircles()
-    grey_dest_img = cv2.cvtColor(dest_img, cv2.COLOR_BGR2GRAY)
     
+    if gamma != 1.0 :  
+        dest_img = adjust_gamma(dest_img, gamma=gamma)
+        src_img = adjust_gamma(src_img, gamma=gamma)
     
-    # To do : Check if binarization option is needed
-#     _, grey_dest_img = cv2.threshold(grey_dest_img, 0, 255, cv2.THRESH_BINARY+cv2.THRESH_OTSU)
-#     _, grey_src_img = cv2.threshold(grey_src_img, 0, 255, cv2.THRESH_BINARY+cv2.THRESH_OTSU)
-#     kernel = np.ones((5,5),np.uint8)
-#     grey_dest_img = cv2.morphologyEx(grey_dest_img, cv2.MORPH_GRADIENT, kernel)
-
-    ## 이미지 변환 -> dim : (3, 4, 1)
-    ## 검출률 변경을 위해선 param2 변경
-
-#     src_circles = cv2.HoughCircles(grey_src_img, 
-#                                    cv2.HOUGH_GRADIENT,
-#                                    1, 
-#                                    max_rad*2, 
-#                                    param1=param1,
-#                                    param2=param2,
-#                                    minRadius=min_rad,
-#                                    maxRadius=max_rad)[0]
-    if src_circles is not None : 
-        grey_src_img = cv2.cvtColor(src_img, cv2.COLOR_BGR2GRAY)
-        centers, r_estimated, metric = imfindcircles(grey_src_img, 
+    if binarization : 
+        dest_img = adaptiveThreshold_3ch(dest_img, min_rad)
+        src_img = adaptiveThreshold_3ch(src_img, min_rad)
+        
+        
+        
+    
+    if src_circles is None : 
+#         grey_src_img = cv2.cvtColor(src_img, cv2.COLOR_BGR2GRAY)
+        centers, r_estimated, metric = imfindcircles(src_img, 
                                                      [min_rad, max_rad],
                                                     sensitivity = sensitivity)
 
@@ -208,7 +143,7 @@ def displacement_measure(dest_img,
             
             try :
                 # Sometimes no circle is detected                
-                centers, r_estimated, metric = imfindcircles(grey_dest_img, 
+                centers, r_estimated, metric = imfindcircles(dest_img, 
                                                              [min_rad, max_rad],
                                                              sensitivity = sensitivity)
                 dest_circles = np.concatenate((centers, r_estimated[:,np.newaxis]), axis = 0).T
@@ -238,3 +173,4 @@ def displacement_measure(dest_img,
     displacement = homography_transformation(src_circles, dest_circles)
 
     return displacement, dest_circles
+
