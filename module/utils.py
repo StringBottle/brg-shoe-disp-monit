@@ -18,7 +18,28 @@ from skimage.measure import label, regionprops_table
 from skimage.morphology import reconstruction
 from numpy import matlib
 
+def adjust_gamma(image, gamma=1.0):
+    # build a lookup table mapping the pixel values [0, 255] to
+    # their adjusted gamma values
+    invGamma = 1.0 / gamma
+    table = np.array([((i / 255.0) ** invGamma) * 255
+        for i in np.arange(0, 256)]).astype("uint8")
+    #apply gamma correction using the lookup table
+    return cv2.LUT(image, table)
 
+
+def adaptiveThreshold_3ch(img, kernel_size) : 
+
+    img[:,:,0] = cv2.adaptiveThreshold(img[:,:,0],255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                                       cv2.THRESH_BINARY,kernel_size,2)
+
+    img[:,:,1] = cv2.adaptiveThreshold(img[:,:,1],255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                                       cv2.THRESH_BINARY,kernel_size,2)
+
+    img[:,:,2] = cv2.adaptiveThreshold(img[:,:,2],255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                                       cv2.THRESH_BINARY,kernel_size,2)
+    
+    return img
 
 ## Function that find four valid circles in dest_circles
 def find_valid_dest_circles(dest_circles):
