@@ -149,8 +149,11 @@ def displacement_measure(dest_img,
             dest_circles = []
 
         sensitivity += 0.1
-
-        if (sensitivity > 1) : 
+        
+        num_centers = len(dest_circles)
+        
+        if ((sensitivity > 1) and (num_centers < 4)) or (num_centers > 10):
+            print('You are here')
             width = dest_img.shape[0]
             height = dest_img.shape[1]
             radius = (max_rad+min_rad)/2
@@ -160,7 +163,7 @@ def displacement_measure(dest_img,
                      [height/2-step, width/2-step, radius],
                      [height/2+step, width/2-step, radius]])
         
-        num_centers = len(dest_circles)
+        
 
     dest_circles = find_valid_dest_circles(dest_circles)
     dest_circles = dest_circles[dest_circles[:,0].argsort()] # 이에 대해 sort
