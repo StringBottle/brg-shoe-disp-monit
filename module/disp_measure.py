@@ -133,40 +133,44 @@ def displacement_measure(dest_img,
     x_dist = 11
     y_dist = 11
     num_allowable_centers = 4
-    dist_mean = 150
 
-    while (x_dist > 5) or (y_dist > 5) : 
-        while num_centers < num_allowable_centers :
-            iter_count += 1
-            
-            try :
-                # Sometimes no circle is detected                
-                centers, r_estimated, metric = imfindcircles(dest_img, 
-                                                             [min_rad, max_rad],
-                                                             sensitivity = sensitivity)
-                dest_circles = np.concatenate((centers, r_estimated[:,np.newaxis]), axis = 0).T
-                dest_circles = np.squeeze(dest_circles)
-            except : 
-                dest_circles = []
+#     while (x_dist > 5) or (y_dist > 5) : 
+    while num_centers != num_allowable_centers :
+        iter_count += 1
 
-            num_centers = len(dest_circles)
+        try :
+            # Sometimes no circle is detected                
+            centers, r_estimated, metric = imfindcircles(dest_img, 
+                                                         [min_rad, max_rad],
+                                                         sensitivity = sensitivity)
+            dest_circles = np.concatenate((centers, r_estimated[:,np.newaxis]), axis = 0).T
+            dest_circles = np.squeeze(dest_circles)
+        except : 
+            dest_circles = []
 
-            sensitivity += 0.1
+        sensitivity += 0.1
 
-            if iter_count > 5 : 
-                print('After 200 iteration, 4 circles are not detected.')
-                return [0., 0., 0.], [[1, 1, 1], [1, 1, 1]]
-            
-        dest_circles = find_valid_dest_circles(dest_circles)
-        dest_circles = dest_circles[dest_circles[:,0].argsort()] # 이에 대해 sort
+        if (sensitivity > 1) : 
+            width = dest_img.shape[0]
+            height = dest_img.shape[1]
+            radius = (max_rad+min_rad)/2
+            step = radius*1.25
+            dest_circles = np.asarray([[height/2+step, width/2+step, radius],
+                     [height/2-step, width/2+step, radius],
+                     [height/2-step, width/2-step, radius],
+                     [height/2+step, width/2-step, radius]])
         
-        x = dest_circles[:, 0] # extract x value of circles - get col vector
-        y = dest_circles[:, 1] # extract y value of circles - get col vector
+        num_centers = len(dest_circles)
 
-        x_dist= abs((x[0] + x[3]) - (x[1] + x[2]))
-        y_dist = abs((y[0] + y[3]) - (y[1] + y[2]))
-        
-        num_allowable_centers += 1
+    dest_circles = find_valid_dest_circles(dest_circles)
+    dest_circles = dest_circles[dest_circles[:,0].argsort()] # 이에 대해 sort
+
+    x = dest_circles[:, 0] # extract x value of circles - get col vector
+    y = dest_circles[:, 1] # extract y value of circles - get col vector
+
+    x_dist= abs((x[0] + x[3]) - (x[1] + x[2]))
+    y_dist = abs((y[0] + y[3]) - (y[1] + y[2]))
+
 
     displacement = homography_transformation(src_circles, dest_circles)
 
