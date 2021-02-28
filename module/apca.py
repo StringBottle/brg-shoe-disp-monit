@@ -241,7 +241,8 @@ def VMWPCA_update(X0, X1,PC,Q,alpha,SD_type,ind_x,ind):
     
     residuals_val = X1std - np.matmul(scores1[:,:load_id ],loadings[:,:load_id].T)
     
-    Qdist_val = np.sqrt(np.divide(np.sum(np.square(residuals_val),1), 1)) # (numvars-1)));
+    
+    Qdist_val = np.sqrt(np.sum(np.square(residuals_val),1)); # (numvars-1)));
     Qdist = np.hstack((Qdist, Qdist_val))
 
     ## CHECK ANOMALITY
@@ -484,8 +485,7 @@ def run_apca_cas(op):
     
     # Siginifiqance Level for Novelty Detection: Threshold
     PCA_par = {}
-    PCA_par['alpha'] = 0.95; # You can change it, but i recommend the values of 95% or 99%
-
+    PCA_par['alpha'] = 0.90; # You can change it, but i recommend the values of 95% or 99%
     #################### Do not chane the following options #################### 
 
     # Scaling Method  
@@ -524,20 +524,22 @@ def run_apca_cas(op):
     PC['k_cluster'] = np.arange(0,4)  # of clusters for block-wise linearization
     PC['n_stall'] = PCA_par['n_stall'] # Delayed number for updating PCs to consider disturbance or measurement error
 
+    # Baseline model construction (training data) : off-line learning
     ## STEP #1: Initial PCs based on initial training data
+    
 
-    # Training data set
-    # 
+    # Training data set 
     X0 = meas[x0,:]
     numobs, numvars = X0.shape
+    # Compute the sample mean and variance 
     mu0, sds0 = np.mean(X0, 0), np.std(X0, 0)
 
     # Standardization: Z-score (zero-mean and unit variance)
-
+    # Standarize the training data by auto-scaling
     X0std=Standardization_Data(X0,mu0,sds0,numobs,SD_type); 
 
     # PERFORM PCA
-
+    # Obtainin the PCA model using SVD and the scaled training data 
     pc = PCA(X0std, standardize=False)
     loadings = pc.Wt.T
     loadings = -loadings.copy()

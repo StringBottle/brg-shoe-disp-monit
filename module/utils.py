@@ -2,21 +2,398 @@
 # -*- coding: utf-8 -*-
 # This module uses Numpy & OpenCV(opencv-python). Please install before use it.
 
-import os.path
-import numpy as np
 import cv2
-import pandas as pd
+import os
 import scipy
 import skimage
 import time
 import re
 import ast
+import io
 
+import os.path as osp
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+
+from glob import glob
+from pathlib import Path
+from tqdm import tqdm
 from itertools import product, combinations
 from scipy.ndimage import convolve
 from skimage.measure import label, regionprops_table
 from skimage.morphology import reconstruction
 from numpy import matlib
+
+def plotAPCA(op, X1, PC, Q, anomal_occur): 
+    
+    """
+    Plot APCA result 
+    
+    Args : 
+        X1
+        PC
+        Q
+        
+    Returns : 
+        None 
+    
+    """
+    
+    fig = plt.figure(figsize=(12, 8))
+
+    x0 = op['IND_x0']
+    x1 = op['IND_x1']
+    plt.plot(x0, Q['Qdist'][x0], 'bo', linewidth=2, markersize=8)
+    plt.plot(x1, Q['Qdist'][x1], 'v', linewidth=2, markersize=8)
+
+    alpha = 0.95
+    SD_type = 'Z-score'
+    PCA_par = {}
+    PCA_par['n_stall'] = 3;
+
+    IND_abnor = np.argwhere(PC['Updated']==0)
+    IND_nor = np.argwhere(PC['Updated']==1)
+    plt.plot(IND_abnor,Q['Qdist'][IND_abnor],'rs',linewidth=2, markersize=8) # Outlier and faulty samples
+    plt.plot(IND_nor,Q['distcrit'][IND_nor][:,:, 0],'k-',linewidth=5, markersize=8) # Outlier and faulty samples
+    plt.axvline(x = IND_nor[-1, 0], color = 'red', linestyle ='--', label='Structural Damage Detected')
+    plt.axvline(x = anomal_occur, color = 'blue', linestyle =':', label='Structural Damage Occured')
+    plt.ylabel('Q-statistics (SPE)', fontsize=20)
+    plt.title('slab_no:' + '# Alpha='+str(alpha)+str(SD_type)+'# stall:'+str(PCA_par['n_stall']),fontsize=15,fontweight='bold')
+    plt.legend(fontsize='x-large')
+    plt.show
+    
+    
+
+def plotData(op, disp_sns_num):
+    
+    """
+    Plot temperature and displacement graph from APCA data 
+    
+    Args :
+        op (dict) : APCA data 
+        
+    Returns : 
+        None 
+        
+    """
+    fig, ax1 = plt.subplots(figsize=(10, 10))
+    color = 'tab:red'
+    ax1.set_xlabel('time', fontsize = 20.0)
+    ax1.set_ylabel('Temperaure(Celcius)', color=color, fontsize = 20.0)
+    ax1.plot(op['t'].T, color=color, linewidth=2)
+    ax1.tick_params(axis='y', labelcolor=color, labelsize = 24)
+
+    ax2 = ax1.twinx()  # instantiate a second axes that shares the same x-axis
+
+    color = 'tab:blue'
+    ax2.set_ylabel('Displacement(mm)', color=color, fontsize = 20.0)  # we already handled the x-label with ax1
+    ax2.plot(op['f'], linewidth=2)
+    ax2.tick_params(axis='y', labelcolor=color, labelsize = 24)
+    ax2.legend(disp_sns_num, fontsize=15)
+
+    fig.tight_layout()  # otherwise the right y-label is slightly clipped
+
+
+
+def cvtDataForAPCA(sns_dict, disp_sns_num, trainig_range, 
+                   tmp_sns_num, anomal_occur = 0, anomal_disp = 0):
+    
+    
+    """
+    Args : 
+        sns_dict (dictionary) : 
+        disp_sns_num (string or list) : sensor num where displacement data to be imported 
+        training_range (int or float) : num of data to be used for training. 
+                                        Ininitial count starts from the first idx
+        tmp_sns_num (string) : sensor num where temperature data to be imported 
+        anomal_occur (int or float) : datetime when anomaly occurs 
+                                      if not occur, it is set to zero. 
+        anomal_disp (int or float) : displacement amount to be shifted from the original displacement 
+                                    if it is set to None, the displacement will be fixed at anomal_occur
+    Returns : 
+        op (dictionary) : Python data dictionary prepared for APCA 
+    
+    """
+    disp_data_list = []
+    temp_data_list = []
+    ite = 0
+    for date, time in sns_dict[tmp_sns_num]['data'].items():
+        for time_, dir_ in time.items():
+            
+            if ite > anomal_occur: 
+                anomal_disp_ = anomal_disp 
+            else : 
+                anomal_disp_ = 0
+            try:
+                temp = dir_['temp']
+            except :
+                temp = None
+
+            try:
+                disp_list = []
+                for idx, sns_num in enumerate(disp_sns_num) : 
+
+                    if sns_dict[sns_num]['disp_dir'] == 'Forward' : 
+                        disp_list.append(-(sns_dict[sns_num]['data'][date][time_]['x_disp'] + anomal_disp_))
+                    else : 
+                        disp_list.append(sns_dict[sns_num]['data'][date][time_]['x_disp'] + anomal_disp_)
+            except :
+                disp_list = None
+
+            if temp and disp_list: 
+                ite += 1
+                temp_data_list.append(temp)  
+                disp_data_list.append(disp_list) 
+                
+    op={}
+    op['t'] = np.array(temp_data_list, dtype=np.float32).squeeze()[:, np.newaxis].T
+    op['f'] = np.array(disp_data_list, dtype=np.float32).squeeze()
+    op['IND_x0'] = np.arange(0, trainig_range)
+    op['IND_x1'] = np.arange(trainig_range, len(disp_data_list))
+    
+    return op
+
+
+### initialize a dictionary for analysis table 
+def snsInfoToDict(sns_info): 
+    
+    """
+    Args : 
+        sns_info (pd.Dataframe) : 
+        
+    Returns : 
+        sns_dict (dictionary) : dictionary contains sensor information 
+    """
+    sns_dict = {} 
+
+    for idx, row in sns_info.iterrows():
+        sns_id = str(row['Sensor ID']).zfill(3)
+        sns_dict[sns_id] = {}
+        sns_dict[sns_id]['type'] = row['Sensor Type']
+        sns_dict[sns_id]['pier']= row['Pier ']
+        sns_dict[sns_id]['slab']= row['Slab No']
+        sns_dict[sns_id]['block']= row['Block']
+        sns_dict[sns_id]['sns_dir']= row['Sensor Direction']
+        sns_dict[sns_id]['sns_loc']= row['Sensor Location']
+        sns_dict[sns_id]['disp_dir']= row['Displacement Direction']
+        sns_dict[sns_id]['install_year']= row['Sensor Installation Year']
+        sns_dict[sns_id]['data'] = {}
+        
+    return sns_dict
+
+def getDirList(sns_info, dataset_folder, ana_periold, sns_type = None) : 
+    
+    """
+    Args : 
+        sns_info (pd.Dataframe) : sensor information in pandas dataframe
+        dataset_folder (string) : dataset folder root directory
+        ana_period (list) : Python list including start and end date of analysis
+        sns_type (string) : data type, 'Img'  or 'Tmp'
+    
+    Returns : 
+        data_list (list) : Python list including data director list under given condition 
+    
+    """
+    
+    sns_list = sns_info[(sns_info['Sensor Type'] == sns_type)]['Sensor ID']
+    data_list = []
+
+    for sensor_id in tqdm(sns_list,  desc="Searching for data under subfolders"):
+        # check installation year 
+
+        install_year = sns_info[(sns_info['Sensor ID'] == sensor_id)]['Sensor Installation Year'].values[0]
+        foler_name = osp.join(dataset_folder, str(install_year), 'data')
+        
+        if sns_type == 'Img' :
+            sns_data_list = glob(osp.join(foler_name, sns_type + '_' + str(sensor_id).zfill(3)+'*.jpg'))
+        elif sns_type == 'Tmp' :
+            sns_data_list = glob(osp.join(foler_name, sns_type + '_' + str(sensor_id).zfill(3)+'*.tpr'))
+
+        for data_dir in sns_data_list: 
+            data_date = int(osp.basename(data_dir)[8:16])
+            if (data_date >= ana_periold[0]) and (data_date <= ana_periold[1]):
+                data_list.append(data_dir)
+                
+    data_list.sort()
+    
+
+    return data_list
+
+def dirListToDict(sns_dict, data_list):
+    
+    """
+    Args : 
+        sns_dict (dictionary) : dictionary contains sensor information 
+        data_list (list) : Python list including data director list under given condition 
+        
+    Returns :
+        sns_dict (dictionary) : updated dictionary with data directories 
+    
+    """
+    
+    for data_dir in data_list: 
+        
+        '''
+        Example file name : Img_038_20200831_230100.jpg
+        
+            data_basename[4:7]  : 038 sns_id
+            data_basename[8:16] : 20200831 date
+            data_basename[17:23] :  230100 time 
+            
+        Since data acquisition is conducted once an hour, 
+        the time will be trucated to only have hour information 
+        
+        '''
+        
+        data_basename = osp.basename(data_dir)
+        sns_type = data_basename[:3]
+        sns_id = data_basename[4:7]
+        date = data_basename[8:16]
+        time = data_basename[17:19] + '0000'
+        
+        # if date does not exist, create a dict 
+        if date not in sns_dict[sns_id]['data'] : 
+            sns_dict[sns_id]['data'][date] = {}
+            
+        # if time does not exist, create a dict 
+        if time not in sns_dict[sns_id]['data'][date] : 
+            sns_dict[sns_id]['data'][date][time] = {}
+        
+        # if time does not exist, create a dict 
+        if sns_type not in sns_dict[sns_id]['data'][date][time] : 
+            sns_dict[sns_id]['data'][date][time][sns_type] = {}
+        
+        sns_dict[sns_id]['data'][date][time][sns_type] = data_dir
+        
+    return sns_dict
+
+def tmpListToDict(sns_dict, data_list):
+    
+    """
+     Args : 
+        sns_dict (dict) : 
+        data_list (list) : 
+    
+    Returns : 
+        sns_dict (dict) : 
+         
+    """
+    
+    for tmp_file in data_list:
+        
+        tmp_measured = None
+        f = io.open(tmp_file, mode="r", encoding="utf-8")
+        txt = f.read()
+        if txt :
+            tmp_measured = str2array(txt)[1]
+            
+        
+        tmp_basename = osp.basename(tmp_file)
+        sns_type = tmp_basename[:3]
+        sns_id = tmp_basename[4:7]
+        date = tmp_basename[8:16]
+        time = tmp_basename[17:23]
+
+        # if date does not exist, create a dict 
+        if date not in sns_dict[sns_id]['data'] : 
+            sns_dict[sns_id]['data'][date] = {}
+            
+        # if time does not exist, create a dict 
+        if time not in sns_dict[sns_id]['data'][date] : 
+            sns_dict[sns_id]['data'][date][time] = {}
+        
+        # if time does not exist, create a dict 
+        if sns_type not in sns_dict[sns_id]['data'][date][time] : 
+            sns_dict[sns_id]['data'][date][time][sns_type] = {}
+
+
+        sns_dict[sns_id]['data'][date][time]['temp'] = tmp_measured
+        
+    return sns_dict
+
+    
+def saveCDResult(img_path, dataset_folder, param_config) : 
+    
+    """
+     Args : 
+        img_path (string) : 
+        dataset_folder (string) : 
+        param_config (dict) :
+    
+    Returns : 
+        None (This function only saves circle detection results in jpg format.)
+         
+    """
+    
+    img = imread(img_path)
+    img_basename = osp.basename(img_path)
+    img_copy = img.copy()
+    
+    sns_id = img_basename[4:7]
+    params = param_config[sns_id]
+    
+    min_rad = params.get("min_rad",70)
+    max_rad = params.get("max_rad",100)
+    sensitivity = params.get("sensitivity",0.98)
+    gamma = float(params.get("gamma", 1.0))
+    binarization = params.get("binarization", 0)
+    
+    result_folder = osp.join(dataset_folder, '2020', 'result', sns_id) # to do : make it not hardcoding
+    Path(result_folder).mkdir(parents=True, exist_ok=True)
+
+
+    if gamma != 1.0 :  
+        img = adjust_gamma(img, gamma=gamma)
+
+    if binarization : 
+        img = adaptiveThreshold_3ch(img, min_rad)
+
+    centers, r_estimated, metric = imfindcircles(img, 
+                                                 [min_rad, max_rad],
+                                                sensitivity = sensitivity)
+    circles = np.concatenate((centers, r_estimated[:,np.newaxis]), axis = 0).T
+    circles = np.squeeze(circles)
+    if len(circles) > 4: 
+        circles = find_valid_dest_circles(circles)
+
+    if circles is not None: 
+        # Convert the circle parameters a, b and r to integers. 
+        circles = np.uint16(np.around(circles)) 
+        if circles.ndim ==1 : 
+            circles = circles[np.newaxis, :]
+        for pt in circles: 
+            a, b, r = pt[0], pt[1], pt[2]   
+            # Draw the circumference of the circle. 
+            cv2.circle(img_copy, (a, b), r, (0, 255, 0), 2) 
+            # Draw a small circle (of radius 1) to show the center. 
+            cv2.circle(img_copy, (a, b), 1, (0, 0, 255), 3) 
+
+        cv2.imwrite(osp.join(result_folder, img_basename), img_copy)
+    else:
+        print("circles is not detected")
+        
+        
+def cvtClcToDict(sns_dict, circles_list): 
+    
+    """
+    Args :
+        sns_dict :
+        circles_list :
+        
+    Returns : 
+        sns_dict : 
+    
+    """
+    
+    for clc in circles_list: 
+        sns_num = clc[0]
+        date = clc[1]
+        time = clc[2][:2] + '0000'
+        sns_dict[sns_num]['data'][date][time]['circles'] = date = clc[3]
+        
+    return sns_dict
+
 
 def adjust_gamma(image, gamma=1.0):
     # build a lookup table mapping the pixel values [0, 255] to
@@ -455,7 +832,8 @@ def imfindcircles(A, radiusRange,  ObjectPolarity = 'bright', sensitivity = 0.95
     return centers, r_estimated, metric
 
 def circle_detection_multi_thread(img_name, param_config):
-    img_basename = os.path.basename(img_name)
+    
+    img_basename = osp.basename(img_name)
     sensor_num = str(img_basename[4:7])
     date = img_basename[8:8+8]
     time = img_basename[17:17+6]
@@ -463,19 +841,23 @@ def circle_detection_multi_thread(img_name, param_config):
     img = imread(img_name)
     sensitivity = params['sensitivity']
     circles = []
-    while len(circles) < 4 :
-        centers, r_estimated, metric = imfindcircles(img, 
-                                                     [params['min_rad'], params['max_rad']],
-                                                     sensitivity = sensitivity)
-        circles = np.concatenate((centers, r_estimated[:,np.newaxis]), axis = 0).T
-        circles = np.squeeze(circles)
-        sensitivity += 0.01
-        if ((sensitivity > 1) and (len(circles) < 4)) or (len(circles) > 10): 
-#             width = img.shape[0]
-#             height = img.shape[1]
-#             radius = (params['max_rad']+params['min_rad'])/2
-#             step = radius*1.25
-            circles = 'No circle is detected or Too manys are detected.'
-            return sensor_num, date, time, circles
+    try : 
+        while len(circles) < 4 :
+            centers, r_estimated, metric = imfindcircles(img, 
+                                                         [params['min_rad'], params['max_rad']],
+                                                         sensitivity = sensitivity)
+            circles = np.concatenate((centers, r_estimated[:,np.newaxis]), axis = 0).T
+            circles = np.squeeze(circles)
+            sensitivity += 0.01
+            if ((sensitivity > 1) and (len(circles) < 4)) or (len(circles) > 10): 
+    #             width = img.shape[0]
+    #             height = img.shape[1]
+    #             radius = (params['max_rad']+params['min_rad'])/2
+    #             step = radius*1.25
+                circles = 'No circle is detected or Too manys are detected.'
+                return sensor_num, date, time, circles
+    except : 
+        circles = 'circle detection is failed .'
+        return sensor_num, date, time, circles
 
     return sensor_num, date, time,find_valid_dest_circles(circles)

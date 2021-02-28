@@ -4,8 +4,11 @@
 
 import numpy as np
 import cv2
+
+
 from itertools import combinations 
 from .utils import findProjectiveTransform, imfindcircles, find_valid_dest_circles, adjust_gamma, adaptiveThreshold_3ch
+
 
 def order_points(pts):
     # sort the points based on their x-coordinates
@@ -49,9 +52,10 @@ def homography_transformation(src_circles, dest_circles, p_length = 50) :
         [p_length/2, p_length/2]
     ])
     
-    # cv2.findHomography(src, desc, ...) 이용해서 호모그래피 matrix 찾기
+    # findHomography(src, desc, ...) 이용해서 호모그래피 matrix 찾기
     h_matrix = findProjectiveTransform(src_matrix, weight).T
 
+    
     #############################################
     ## dest 전처리
     dest_vec1 = np.array([[dest_circles[0][0]], [dest_circles[0][1]], [1]])
@@ -80,9 +84,7 @@ def homography_transformation(src_circles, dest_circles, p_length = 50) :
 
 ## Function with Path
 def convert_by_path(dest_path, src_path):
-    
 
-    
     dest_img = cv2.imread(dest_path)
     dest_img = cv2.medianBlur(dest_img, 5)
 
@@ -135,7 +137,7 @@ def displacement_measure(dest_img,
     num_allowable_centers = 4
 
 #     while (x_dist > 5) or (y_dist > 5) : 
-    while num_centers != num_allowable_centers :
+    while num_centers < num_allowable_centers :
         iter_count += 1
 
         try :
@@ -153,7 +155,6 @@ def displacement_measure(dest_img,
         num_centers = len(dest_circles)
         
         if ((sensitivity > 1) and (num_centers < 4)) or (num_centers > 10):
-            print('You are here')
             width = dest_img.shape[0]
             height = dest_img.shape[1]
             radius = (max_rad+min_rad)/2
@@ -162,6 +163,7 @@ def displacement_measure(dest_img,
                      [height/2-step, width/2+step, radius],
                      [height/2-step, width/2-step, radius],
                      [height/2+step, width/2-step, radius]])
+            num_centers = len(dest_circles)
         
         
 
