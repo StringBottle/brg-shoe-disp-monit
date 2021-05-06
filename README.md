@@ -5,7 +5,8 @@ This repository is for development of automated bridge shoe displacement anomaly
 ## Installation
 
 ```bash
-conda env create -f environment.yml
+conda create -n shoe-monit 
+pip install -r requirements.txt
 ```
 
 ## Usage
