@@ -809,8 +809,6 @@ def chradiiphcode(centers, accumMatrix, radiusRange) :
 
 
 def imfindcircles(A, radiusRange,  ObjectPolarity = 'bright', sensitivity = 0.95):
-    
-    
 
     [accumMatrix, gradientImg] = chaccum(A, radiusRange, objPolarity=ObjectPolarity);
 
@@ -859,5 +857,7 @@ def circle_detection_multi_thread(img_name, param_config):
     except : 
         circles = 'circle detection is failed .'
         return sensor_num, date, time, circles
+    
+    circles = find_valid_dest_circles(circles).tolist()
 
-    return sensor_num, date, time,find_valid_dest_circles(circles)
+    return sensor_num, date, time, circles
