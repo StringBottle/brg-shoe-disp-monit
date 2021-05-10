@@ -319,7 +319,7 @@ def main():
     tmp_info_dict = collect_temp_info(filtered_tmp_sns_dirs)
     disp_info_dict = collect_disp_info(filtered_img_sns_dirs)
     
-    writer = pd.ExcelWriter('2021.05.10.xlsx', engine='xlsxwriter')
+    writer = pd.ExcelWriter(xls_filename, engine='xlsxwriter')
 
     sns_info_df.to_excel(writer, sheet_name= 'snsr_info')
 
