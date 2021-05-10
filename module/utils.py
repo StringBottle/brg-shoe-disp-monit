@@ -567,10 +567,10 @@ def findProjectiveTransform(uv, xy):
     
     """
         
-    uv, normMatrix1 = normalizeControlPoints(uv);
-    xy, normMatrix2 = normalizeControlPoints(xy);
+    uv, normMatrix1 = normalizeControlPoints(uv)
+    xy, normMatrix2 = normalizeControlPoints(xy)
 
-    minRequiredNonCollinearPairs = 4;
+    minRequiredNonCollinearPairs = 4
     M = xy.shape[0]
     x = xy[:, 0][:, np.newaxis]
     y = xy[:, 1][:, np.newaxis]
@@ -591,7 +591,7 @@ def findProjectiveTransform(uv, xy):
 
     #      We assumed I = 1;
     Tvec = np.append(Tvec, 1)
-    Tinv = np.reshape(Tvec, (3, 3));
+    Tinv = np.reshape(Tvec, (3, 3))
 
     Tinv = np.linalg.lstsq(normMatrix2, np.matmul(Tinv, normMatrix1), rcond=-1)[0]
     T = np.linalg.inv(Tinv)
@@ -621,7 +621,7 @@ def imgradient(img):
     Gx = convolve(img, hx, mode='nearest')
     Gy = convolve(img, hy, mode='nearest')
     
-    gradientImg = np.hypot(Gx, Gy);
+    gradientImg = np.hypot(Gx, Gy)
         
     return Gx, Gy, gradientImg
 
@@ -686,12 +686,12 @@ def chaccum(A, radiusRange, method = 'phasecode',  objPolarity = 'bright', edgeT
     # Assume that image is not flat 
 
     # Get the input image in the correct format
-    A = getGrayImage(A);
+    A = getGrayImage(A)
 
     ## Calculate gradient
-    Gx, Gy, gradientImg = imgradient(A);
+    Gx, Gy, gradientImg = imgradient(A)
 
-    Ex, Ey = getEdgePixels(gradientImg, edgeThresh);
+    Ex, Ey = getEdgePixels(gradientImg, edgeThresh)
     E = np.stack((Ey, Ex))
 
     # Not sure np.ravel_multi_index is equivalent with Matlab Function sub2ind
@@ -707,11 +707,11 @@ def chaccum(A, radiusRange, method = 'phasecode',  objPolarity = 'bright', edgeT
 
     ### This implementation only includes 'phasecode' mode 
 
-    lnR = np.log(radiusRange);
-    phi = ((lnR - lnR[0])/(lnR[-1] - lnR[0])*2*np.pi) - np.pi; # Modified form of Log-coding from Eqn. 8 in [3]
+    lnR = np.log(radiusRange)
+    phi = ((lnR - lnR[0])/(lnR[-1] - lnR[0])*2*np.pi) - np.pi # Modified form of Log-coding from Eqn. 8 in [3]
 
-    Opca = np.exp(np.sqrt(-1+0j)*phi);
-    w0 = Opca/(2*np.pi*radiusRange);
+    Opca = np.exp(np.sqrt(-1+0j)*phi)
+    w0 = Opca/(2*np.pi*radiusRange)
 
     xcStep = int(maxNumElemNHoodMat//RR.shape[0])
 
@@ -748,11 +748,11 @@ def chaccum(A, radiusRange, method = 'phasecode',  objPolarity = 'bright', edgeT
 
         inside = (xc >= 1) & (xc <= N) & (yc >= 1) & (yc < M)
         # Keep rows that have at least one candidate position inside the domain.
-        rows_to_keep = np.any(inside, 1);
-        xc = xc[rows_to_keep,:];
-        yc = yc[rows_to_keep,:];
-        w = w[rows_to_keep,:];
-        inside = inside[rows_to_keep,:];
+        rows_to_keep = np.any(inside, 1)
+        xc = xc[rows_to_keep,:]
+        yc = yc[rows_to_keep,:]
+        w = w[rows_to_keep,:]
+        inside = inside[rows_to_keep,:]
 
         ## Accumulate the votes in the parameter plane
         xc = xc[inside]
@@ -800,7 +800,7 @@ def chcenters(accumMatrix, accumThresh) :
 def chradiiphcode(centers, accumMatrix, radiusRange) :
     centers_int = np.asarray(centers, dtype = np.int64)
     cenPhase = np.angle(accumMatrix[centers_int[1], centers_int[0]])
-    lnR = np.log(radiusRange);
+    lnR = np.log(radiusRange)
     
     # Inverse of modified form of Log-coding from Eqn. 8 in [1]
     r_estimated = np.exp(((cenPhase + np.pi)/(2*np.pi)*(lnR[-1] - lnR[0])) + lnR[0]) 
@@ -810,12 +810,12 @@ def chradiiphcode(centers, accumMatrix, radiusRange) :
 
 def imfindcircles(A, radiusRange,  ObjectPolarity = 'bright', sensitivity = 0.95):
 
-    [accumMatrix, gradientImg] = chaccum(A, radiusRange, objPolarity=ObjectPolarity);
+    [accumMatrix, gradientImg] = chaccum(A, radiusRange, objPolarity=ObjectPolarity)
 
     ## Estimate the centers
-    accumThresh = 1 - sensitivity;
+    accumThresh = 1 - sensitivity
 
-    accumMatrix = abs(accumMatrix);
+    accumMatrix = abs(accumMatrix)
 
     centers, metric = chcenters(accumMatrix, accumThresh)
 
