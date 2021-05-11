@@ -137,14 +137,18 @@ def get_src_circles(sns_num, param_config):
         src_circles (np.array) : center coordinates of source circles 
         
     """
-    # default source image number 
-    year = '2020'
-    month = '10'
-    date = '14'
-    time = '16'
 
-    # exceptions     
-    
+    # for sns_num, params in param_config.items(): 
+    params = param_config[sns_num] 
+    img_name = params['src_img']
+    _, _ , year_month_date, hh_mm_ss = img_name.split('_')
+    hh_mm_ss = hh_mm_ss.split('.')[0]
+    time = hh_mm_ss[:2]
+
+    year = year_month_date[:4]
+    month = year_month_date[4:6]
+    date = year_month_date[6:8]
+
     src_circles_folder = osp.join(data_root, sns_type, sns_num, year, month, date) 
 
     latest_log = get_latest_log_folder(src_circles_folder)
@@ -155,9 +159,10 @@ def get_src_circles(sns_num, param_config):
         src_circles_dict = pickle.load(readfile)
 
     img_key = 'Img_{}_{}{}{}_{}0100.jpg'.format(sns_num, year, month, date, time)
+    src_circles = src_circles_dict[img_key]
 
-    return src_circles_dict[img_key]
-
+    return src_circles
+    
 
 def get_latest_log_folder(date_folder):
 
@@ -197,7 +202,7 @@ def get_latest_circle_pkl(log_folders_by_time):
     return None
 
 
-def collect_disp_info(img_folder_list):
+def collect_disp_info(img_folder_list, param_config):
 
     """
     Args: 
@@ -245,7 +250,7 @@ def collect_disp_info(img_folder_list):
                 hh_mm_ss = hh_mm_ss.split('.')[0]
                 
                 if not isinstance(circles, str) : 
-                    src_circles = np.asarray(get_src_circles(sns_num))
+                    src_circles = np.asarray(get_src_circles(sns_num, param_config))
                     circles = np.asarray(circles)
                     disp_result = homography_transformation(src_circles[:, :2], circles[:, :2])
                     x_disp, y_disp = float(disp_result[0]), float(disp_result[1])
@@ -294,45 +299,6 @@ def collect_temp_info(tmp_folder_list):
 
     return tmp_dict
 
-def temp():
-    # Import circle detection and  
-    with open('params.json') as param_config_json : 
-        param_config = json.load(param_config_json)
-
-    for sns_num in img_sns_list:
-    # for sns_num, params in param_config.items(): 
-        params = param_config[sns_num] 
-        img_name = params['src_img']
-        _, _ , year_month_date, hh_mm_ss = img_name.split('_')
-        hh_mm_ss = hh_mm_ss.split('.')[0]
-        time = hh_mm_ss[:2]
-
-        year = year_month_date[:4]
-        month = year_month_date[4:6]
-        date = year_month_date[6:8]
-
-        src_circles_folder = osp.join(data_root, sns_type, sns_num, year, month, date) 
-
-        latest_log = get_latest_log_folder(src_circles_folder)
-
-        circles_pickle_filename = osp.join(latest_log, 'circle_detection_results.pickle')
-
-        with open(circles_pickle_filename , 'rb') as readfile:
-            src_circles_dict = pickle.load(readfile)
-
-        img_key = 'Img_{}_{}{}{}_{}0100.jpg'.format(sns_num, year, month, date, time)
-        src_circles = src_circles_dict[img_key]
-        
-        src_img = sscv.imread(osp.join(latest_log, 'circle_detection_result_images', img_key))
-        sscv.imwrite(osp.join('temp', img_key), src_img)
-        print(src_circles_folder)
-        print(src_circles)
-        
-
-
-
-
-
 def main(): 
 
     img_sns_dirs = search_directories_by_sensor(data_root, sns_type, img_sns_list )
@@ -346,10 +312,14 @@ def main():
     with open('data_tmp.pkl', "rb") as f:
         sns_dict = pickle.load(f)
 
+    # Import circle detection and  
+    with open('params.json') as param_config_json : 
+        param_config = json.load(param_config_json)
+
     sns_info_df = create_sns_info_df(sns_dict)
     
     tmp_info_dict = collect_temp_info(filtered_tmp_sns_dirs)
-    disp_info_dict = collect_disp_info(filtered_img_sns_dirs)
+    disp_info_dict = collect_disp_info(filtered_img_sns_dirs, param_config)
     
     writer = pd.ExcelWriter(xls_filename, engine='xlsxwriter')
 
@@ -366,8 +336,7 @@ def main():
 
 if __name__ == "__main__" : 
 
-    # main()
-    temp()
+    main()
 
     
 
