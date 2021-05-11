@@ -17,7 +17,7 @@ from module.utils import str2array
 
 data_root = '/media/sss/Seagate Backup Plus Drive/NIA_Smart_Monitoring/folderized_data'
 
-xls_filename = '2021.05.10.xlsx'
+xls_filename = '2021.05.11.xlsx'
 
 sns_type = 'Img'
 
@@ -240,9 +240,11 @@ def collect_disp_info(img_folder_list, param_config):
             if not Path(circles_pickle_filename).exists():
                 print("There is no circle_detection_results exists under {}.".format(latest_log))
                 continue
-
-            with open(circles_pickle_filename , 'rb') as readfile:
-                circles_dict = pickle.load(readfile)
+            try : 
+                with open(circles_pickle_filename , 'rb') as readfile:
+                    circles_dict = pickle.load(readfile)
+            except : 
+                continue
             
             for img_name, circles in circles_dict.items() : 
 
@@ -318,8 +320,8 @@ def main():
 
     sns_info_df = create_sns_info_df(sns_dict)
     
-    tmp_info_dict = collect_temp_info(filtered_tmp_sns_dirs)
     disp_info_dict = collect_disp_info(filtered_img_sns_dirs, param_config)
+    tmp_info_dict = collect_temp_info(filtered_tmp_sns_dirs)
     
     writer = pd.ExcelWriter(xls_filename, engine='xlsxwriter')
 
