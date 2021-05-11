@@ -1,9 +1,12 @@
 import io
+import json
 import pickle
+import sscv
 
 import numpy as np
 import os.path as osp 
 import pandas as pd
+import matplotlib.pyplot as plt 
 
 from glob import glob 
 from pathlib import Path
@@ -18,14 +21,15 @@ xls_filename = '2021.05.10.xlsx'
 
 sns_type = 'Img'
 
-img_sns_list = ['002', '005', '008', '011', '014', '017', '023', '026',  
-              '029', '032','035','038','041','044','047','050','062','065','068',
-              '071','074','077','090','093','094','097','098','103','104','107',
-              '108','111','112','115','116','119','120','123','124','127','128',
-              '131','132','135','136','139','140','143','144','147','148','151',
-              '152','155','156','159','160','163','164','167','168','171','172',
-              '175','176','179','180','183','184','187','188','191','192','195',
-              '196','199','200','203','204','207','208','211','212']
+img_sns_list = ['002', '005', '011', '014', '017', '026', '029', '032',
+                '035', '038', '044', '047', '050', '062', '065', '068', 
+                '074', '077', '090', '093', '094', '097', '098', '103', '104', '107',
+                '108', '111', '112', '115', '116', '119', '120', '123', '124', '127',
+                '128', '131', '132', '136', '139', '140', '143', '144', '147',
+                '148', '151', '152', '156', '159', '160', '163', '164', '167',
+                '168', '171', '172', '175', '176', '179', '180', '183', '184', '187',
+                '188', '191', '192', '195', '196', '199', '200', '203', '204', '207',
+                '208','211','212']
 
 
 # filter list by date 
@@ -60,7 +64,6 @@ def search_directories_by_sensor(data_root, sns_type, sns_list=None) :
 
     return directories_by_sensor
     
-
 
 def filter_directories_by_date(directories_by_sensor, filter_year, filter_month, filter_date):
 
@@ -123,11 +126,12 @@ def create_sns_info_df(sns_dict):
     return sns_info_df
 
 
-def get_src_circles(sns_num):
+def get_src_circles(sns_num, param_config):
 
     """
     Args : 
         sns_num (int or float) : sensor number 
+        parma_config (json) : parameters in json 
 
     Returns : 
         src_circles (np.array) : center coordinates of source circles 
@@ -140,16 +144,6 @@ def get_src_circles(sns_num):
     time = '16'
 
     # exceptions     
-    if sns_num == '011':
-        time = '01'
-    elif sns_num == '041':
-        time = '16'
-    elif sns_num == '135':
-        time = '07'
-    elif sns_num == '071':
-        time = '11'
-    elif sns_num == '155':
-        time = '23'
     
     src_circles_folder = osp.join(data_root, sns_type, sns_num, year, month, date) 
 
@@ -242,13 +236,13 @@ def collect_disp_info(img_folder_list):
                 print("There is no circle_detection_results exists under {}.".format(latest_log))
                 continue
 
-
             with open(circles_pickle_filename , 'rb') as readfile:
                 circles_dict = pickle.load(readfile)
             
             for img_name, circles in circles_dict.items() : 
 
                 _, _ , year_month_date, hh_mm_ss = img_name.split('_')
+                hh_mm_ss = hh_mm_ss.split('.')[0]
                 
                 if not isinstance(circles, str) : 
                     src_circles = np.asarray(get_src_circles(sns_num))
@@ -259,7 +253,7 @@ def collect_disp_info(img_folder_list):
                 else : 
                     x_disp, y_disp = None, None 
 
-                disp_info = disp_info.append({'datetime' : str(year_month_date) + str(hh_mm_ss[:2]),
+                disp_info = disp_info.append({'datetime' : str(year_month_date) + str(hh_mm_ss),
                                             'circles' : circles,
                                             'x_disp': x_disp,
                                             'y_disp': y_disp }, ignore_index = True)
@@ -300,6 +294,44 @@ def collect_temp_info(tmp_folder_list):
 
     return tmp_dict
 
+def temp():
+    # Import circle detection and  
+    with open('params.json') as param_config_json : 
+        param_config = json.load(param_config_json)
+
+    for sns_num in img_sns_list:
+    # for sns_num, params in param_config.items(): 
+        params = param_config[sns_num] 
+        img_name = params['src_img']
+        _, _ , year_month_date, hh_mm_ss = img_name.split('_')
+        hh_mm_ss = hh_mm_ss.split('.')[0]
+        time = hh_mm_ss[:2]
+
+        year = year_month_date[:4]
+        month = year_month_date[4:6]
+        date = year_month_date[6:8]
+
+        src_circles_folder = osp.join(data_root, sns_type, sns_num, year, month, date) 
+
+        latest_log = get_latest_log_folder(src_circles_folder)
+
+        circles_pickle_filename = osp.join(latest_log, 'circle_detection_results.pickle')
+
+        with open(circles_pickle_filename , 'rb') as readfile:
+            src_circles_dict = pickle.load(readfile)
+
+        img_key = 'Img_{}_{}{}{}_{}0100.jpg'.format(sns_num, year, month, date, time)
+        src_circles = src_circles_dict[img_key]
+        
+        src_img = sscv.imread(osp.join(latest_log, 'circle_detection_result_images', img_key))
+        sscv.imwrite(osp.join('temp', img_key), src_img)
+        print(src_circles_folder)
+        print(src_circles)
+        
+
+
+
+
 
 def main(): 
 
@@ -334,7 +366,8 @@ def main():
 
 if __name__ == "__main__" : 
 
-    main()
+    # main()
+    temp()
 
     
 
