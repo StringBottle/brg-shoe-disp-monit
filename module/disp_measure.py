@@ -43,7 +43,6 @@ def homography_transformation(src_circles, dest_circles, p_length = 50) :
     src_matrix = order_points(src_matrix)
     dest_circles = order_points(dest_circles)
 
-
     # p_length에 따른 weight matrix 생성
     weight = np.array([
         [0, 0],

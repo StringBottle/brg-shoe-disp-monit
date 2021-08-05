@@ -301,6 +301,7 @@ def collect_temp_info(tmp_folder_list):
 
     return tmp_dict
 
+
 def main(): 
 
     img_sns_dirs = search_directories_by_sensor(data_root, sns_type, img_sns_list )
